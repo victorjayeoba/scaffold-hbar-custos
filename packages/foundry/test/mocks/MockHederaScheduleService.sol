@@ -16,6 +16,13 @@ contract MockHederaScheduleService {
     uint64 public lastScheduleValue;
     bytes public lastScheduleCallData;
 
+    mapping(uint256 => bool) public fullSecond;
+    uint256 public scheduleCount;
+
+    function setSecondFull(uint256 second, bool full) external {
+        fullSecond[second] = full;
+    }
+
     function setHasCapacity(bool value) external {
         hasCapacity = value;
     }
@@ -28,8 +35,8 @@ contract MockHederaScheduleService {
         deleteResponseCode = value;
     }
 
-    function hasScheduleCapacity(uint256, uint256) external view returns (bool) {
-        return hasCapacity;
+    function hasScheduleCapacity(uint256 second, uint256) external view returns (bool) {
+        return hasCapacity && !fullSecond[second];
     }
 
     function scheduleCall(address to, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
@@ -41,6 +48,7 @@ contract MockHederaScheduleService {
         lastScheduleGasLimit = gasLimit;
         lastScheduleValue = value;
         lastScheduleCallData = callData;
+        scheduleCount++;
 
         if (scheduleResponseCode != SUCCESS) {
             return (scheduleResponseCode, address(0));
