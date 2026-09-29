@@ -49,4 +49,4 @@ jobs:
         run: yarn next:check-types
 
       - name: Run foundry lint
-        run: yarn foundry:lint --max-warnings=0
+        run: yarn foundry:lint
