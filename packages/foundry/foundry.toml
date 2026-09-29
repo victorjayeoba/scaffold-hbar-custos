@@ -9,6 +9,11 @@ fs_permissions = [
 ffi = true
 evm_version = "cancun"
 
+[invariant]
+runs = 256
+depth = 50
+fail_on_revert = true
+
 # Suppress style lints for API/modifier names we don't control
 [lint]
 exclude_lints = ["mixed-case-variable", "mixed-case-function"]
