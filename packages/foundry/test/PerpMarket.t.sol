@@ -273,7 +273,7 @@ contract PerpMarketTest is CustosBase {
         vm.warp(market.nextRunAt());
         _setPrice(10_000_000); // everyone underwater
 
-        market.tick{ gas: 1_000_000 }();
+        market.tick{ gas: 2_300_000 }();
         uint256 left = market.traderCount();
         assertGt(left, 0); // not all fit in this tick
         assertLt(left, 20); // but some were liquidated
@@ -343,6 +343,6 @@ contract PerpMarketTest is CustosBase {
 
     function test_constructorRejectsZeroAddresses() public {
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector);
-        new PerpMarket(address(0), address(guard), address(pool), address(this), 300, 1, 0);
+        new PerpMarket(address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0);
     }
 }

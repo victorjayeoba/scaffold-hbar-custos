@@ -1,133 +1,182 @@
-// Custos testnet actions that need Hedera's system contracts (HSS, HTS), which `forge script` cannot simulate.
-// Each step is a plain `cast send` from your keystore, so every transaction shows up on HashScan as you.
+// Custos on Hedera testnet, with `forge create` and `cast send` only. `forge script` cannot simulate Hedera's
+// system contracts (HSS, HTS), and current Foundry cannot fork through the public JSON-RPC relay.
 //
+//   yarn custos:deploy:testnet   PriceGuard → LiquidityPool → PerpMarket, link them, fund the keeper,
+//                                write deployments/296.json and regenerate the frontend's deployedContracts.ts
 //   yarn custos:start:testnet    associate pool + market with USDC, book the keeper's first tick
 //   yarn custos:demo:testnet     seed the pool and open a 50x long that a ~1% drop liquidates
 //   yarn custos:revive:testnet   restart the keeper if its chain broke
 //
-// Options: --keystore <name> (or ETH_KEYSTORE_ACCOUNT); cast reads ETH_PASSWORD if set, else prompts.
-// Demo amounts (USDC, 6 dp): DEMO_POOL_USDC (default 100000000 = 100), DEMO_COLLATERAL (default 1000000 = 1).
-import { readFileSync, existsSync } from "fs";
+// Signer: --keystore <name> (or ETH_KEYSTORE_ACCOUNT; cast reads ETH_PASSWORD if set, else prompts),
+//         or DEPLOYER_PRIVATE_KEY in the environment (never write it into a file).
+// Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 2500000),
+//                  KEEPER_RUN_COST tinybars (default 165000000), KEEPER_FUND HBAR (default 40).
+// Demo (USDC, 6 dp): DEMO_POOL_USDC (default 100000000 = 100), DEMO_COLLATERAL (default 1000000 = 1).
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 import { listKeystores } from "./listKeystores.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, "..");
 const RPC = process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
-const USDC = "0x0000000000000000000000000000000000068cDa";
+const CHAINLINK_HBAR_USD = "0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a";
+const SUPRA = "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917";
+const SUPRA_HBAR_USDT = "75";
+const USDC = "0x0000000000000000000000000000000000068cDa"; // 0.0.429274
+const DEPLOYMENTS = join(ROOT, "deployments", "296.json");
+const shell = process.platform === "win32";
 
 const [, , command, ...rest] = process.argv;
 const keystoreFlag = rest.indexOf("--keystore");
 let keystore =
   keystoreFlag >= 0 ? rest[keystoreFlag + 1] : process.env.ETH_KEYSTORE_ACCOUNT;
 
+function signer() {
+  return process.env.DEPLOYER_PRIVATE_KEY
+    ? ["--private-key", process.env.DEPLOYER_PRIVATE_KEY]
+    : ["--account", keystore];
+}
+
+function run(label, bin, args, capture = false) {
+  console.log(`\n→ ${label}`);
+  const result = spawnSync(bin, args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: capture ? ["inherit", "pipe", "inherit"] : "inherit",
+    shell,
+  });
+  if (result.status !== 0) {
+    console.error(`❌ ${label} failed`);
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout;
+}
+
+function send(label, to, sig, args = [], gas = 1_000_000, value) {
+  const extra = value ? ["--value", value] : [];
+  run(label, "cast", [
+    "send", to, sig, ...args, ...extra,
+    "--rpc-url", RPC, ...signer(), "--legacy", "--gas-limit", String(gas),
+  ]); // prettier-ignore
+}
+
+function create(name, args) {
+  const out = run(
+    `Deploy ${name}`,
+    "forge",
+    [
+      "create", `contracts/${name}.sol:${name}`, "--rpc-url", RPC, ...signer(),
+      "--legacy", "--broadcast", "--json", "--constructor-args", ...args,
+    ], // prettier-ignore
+    true
+  );
+  const { deployedTo, transactionHash } = JSON.parse(
+    out.slice(out.indexOf("{"))
+  );
+  console.log(`  ${name} ${deployedTo}`);
+  return { name, address: deployedTo, hash: transactionHash };
+}
+
+function deployer() {
+  if (process.env.DEPLOYER_PRIVATE_KEY) {
+    return run("Deployer address", "cast", ["wallet", "address", ...signer()], true).trim(); // prettier-ignore
+  }
+  return run("Deployer address", "cast", ["wallet", "address", "--account", keystore], true).trim(); // prettier-ignore
+}
+
 function deployed() {
-  const file = join(__dirname, "..", "deployments", "296.json");
-  if (!existsSync(file)) {
-    console.error(
-      "❌ No deployments/296.json. Run `yarn foundry:deploy:testnet` first."
-    );
+  if (!existsSync(DEPLOYMENTS)) {
+    console.error("❌ No deployments/296.json. Run `yarn custos:deploy:testnet` first."); // prettier-ignore
     process.exit(1);
   }
   const byName = {};
   for (const [addr, name] of Object.entries(
-    JSON.parse(readFileSync(file, "utf8"))
+    JSON.parse(readFileSync(DEPLOYMENTS, "utf8"))
   )) {
     if (addr.startsWith("0x")) byName[name] = addr;
   }
   return byName;
 }
 
-function send(label, to, sig, args = [], gas = 1_000_000) {
-  console.log(`\n→ ${label}`);
-  const result = spawnSync(
-    "cast",
-    [
-      "send",
-      to,
-      sig,
-      ...args,
-      "--rpc-url",
-      RPC,
-      "--account",
-      keystore,
-      "--legacy",
-      "--gas-limit",
-      String(gas),
-    ],
-    { stdio: "inherit", shell: process.platform === "win32" }
-  );
-  if (result.status !== 0) {
-    console.error(`❌ ${label} failed`);
-    process.exit(result.status ?? 1);
-  }
+/// Writes deployments/296.json and a broadcast record in forge's format, then regenerates the ABIs.
+function record(contracts) {
+  mkdirSync(dirname(DEPLOYMENTS), { recursive: true });
+  const json = { networkName: "hedera_testnet" };
+  for (const c of contracts) json[c.address] = c.name;
+  writeFileSync(DEPLOYMENTS, JSON.stringify(json, null, 2) + "\n");
+
+  const dir = join(ROOT, "broadcast", "Deploy.s.sol", "296");
+  mkdirSync(dir, { recursive: true });
+  const transactions = contracts.map((c) => ({
+    hash: c.hash,
+    transactionType: "CREATE",
+    contractName: c.name,
+    contractAddress: c.address,
+  }));
+  const receipts = contracts.map((c) => ({ transactionHash: c.hash }));
+  const body = JSON.stringify({ transactions, receipts, chain: 296 }, null, 2);
+  writeFileSync(join(dir, `run-${Math.floor(Date.now() / 1000)}.json`), body);
+  writeFileSync(join(dir, "run-latest.json"), body);
+  run("Generate the frontend ABIs", "node", ["scripts-js/generateTsAbis.js"]);
 }
 
 async function main() {
-  if (!["start", "demo", "revive"].includes(command)) {
+  if (!["deploy", "start", "demo", "revive"].includes(command)) {
     console.log(
-      "Usage: node scripts-js/custos.js <start|demo|revive> [--keystore <name>]"
+      "Usage: node scripts-js/custos.js <deploy|start|demo|revive> [--keystore <name>]"
     );
     process.exit(1);
   }
-  if (!keystore)
+  if (!process.env.DEPLOYER_PRIVATE_KEY && !keystore) {
     keystore = await listKeystores("Select the keystore to send from: ");
+  }
+
+  if (command === "deploy") {
+    const owner = deployer();
+    const interval = process.env.KEEPER_INTERVAL || "1800";
+    const gasLimit = process.env.KEEPER_GAS_LIMIT || "2500000";
+    const runCost = process.env.KEEPER_RUN_COST || "165000000";
+    const fund = process.env.KEEPER_FUND || "40";
+    run("Compile", "forge", ["build"]);
+    const guard = create("PriceGuard", [
+      CHAINLINK_HBAR_USD, SUPRA, SUPRA_HBAR_USDT, "7200", "300", owner,
+    ]); // prettier-ignore
+    const pool = create("LiquidityPool", [USDC, owner]);
+    const market = create("PerpMarket", [
+      USDC, guard.address, pool.address, owner, interval, gasLimit, runCost,
+    ]); // prettier-ignore
+    send("Link the pool to the market", pool.address, "setMarket(address)", [market.address]); // prettier-ignore
+    send("Fund the keeper's fee reserve", market.address, "fund()", [], 100_000, `${fund}ether`); // prettier-ignore
+    record([guard, pool, market]);
+    console.log("\nNext: yarn custos:start:testnet");
+  }
+
   const { PerpMarket: market, LiquidityPool: pool } = deployed();
 
   if (command === "start") {
     send("Associate the pool with USDC", pool, "associate()");
     send("Associate the market with USDC", market, "associate()");
-    send("Book the keeper's first tick", market, "revive()", [], 1_500_000);
+    send("Book the keeper's first tick", market, "revive()", [], 1_700_000);
   }
 
   if (command === "demo") {
     const poolUsdc = process.env.DEMO_POOL_USDC || "100000000";
     const collateral = process.env.DEMO_COLLATERAL || "1000000";
-    send("Approve the pool to take USDC", USDC, "approve(address,uint256)", [
-      pool,
-      poolUsdc,
-    ]);
-    send("Deposit into the pool", pool, "deposit(uint256,address)", [
-      poolUsdc,
-      deployer(),
-    ]);
-    send(
-      "Approve the market to take collateral",
-      USDC,
-      "approve(address,uint256)",
-      [market, collateral]
-    );
-    send(
-      "Open a 50x long",
-      market,
-      "open(bool,uint256,uint256)",
-      ["true", collateral, "50"],
-      1_500_000
-    );
+    send("Approve the pool to take USDC", USDC, "approve(address,uint256)", [pool, poolUsdc]); // prettier-ignore
+    send("Deposit into the pool", pool, "deposit(uint256,address)", [poolUsdc, deployer()]); // prettier-ignore
+    send("Approve the market to take collateral", USDC, "approve(address,uint256)", [market, collateral]); // prettier-ignore
+    send("Open a 50x long", market, "open(bool,uint256,uint256)", ["true", collateral, "50"], 1_500_000); // prettier-ignore
   }
 
   if (command === "revive") {
-    send("Revive the keeper", market, "revive()", [], 1_500_000);
+    send("Revive the keeper", market, "revive()", [], 1_700_000);
   }
 
   console.log(
     `\n✅ Done. Market: https://hashscan.io/testnet/contract/${market}`
   );
-}
-
-function deployer() {
-  const result = spawnSync(
-    "cast",
-    ["wallet", "address", "--account", keystore],
-    {
-      encoding: "utf8",
-      stdio: ["inherit", "pipe", "inherit"],
-      shell: process.platform === "win32",
-    }
-  );
-  if (result.status !== 0) process.exit(result.status ?? 1);
-  return result.stdout.trim();
 }
 
 main().catch((error) => {

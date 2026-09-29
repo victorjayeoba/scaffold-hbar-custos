@@ -39,7 +39,7 @@ abstract contract CustosBase is Test {
         supra = new MockSupra(8, 12_000_000);
         guard = new PriceGuard(address(chainlink), address(supra), 75, 3600, 300, address(this));
         pool = new LiquidityPool(usdc, address(this));
-        market = new PerpMarket(address(usdc), address(guard), address(pool), address(this), 300, 1_000_000, 1e8);
+        market = new PerpMarket(address(usdc), address(guard), address(pool), address(this), 300, 2_500_000, 1e8);
         pool.setMarket(address(market));
 
         _fund(lp, POOL_SEED);

@@ -11,7 +11,7 @@ contract FlakyKeeper is ScheduledKeeper {
     bool public fail;
     uint256 public done;
 
-    constructor() ScheduledKeeper(300, 1_000_000, 1e8) { }
+    constructor() ScheduledKeeper(300, 2_000_000, 1e8) { }
 
     function setFail(bool value) external {
         fail = value;
@@ -50,7 +50,7 @@ contract ScheduledKeeperTest is Test {
         assertTrue(keeper.nextSchedule() != address(0));
         assertEq(_hss().lastScheduleTo(), address(keeper));
         assertEq(_hss().lastScheduleExpirySecond(), block.timestamp + 300);
-        assertEq(_hss().lastScheduleGasLimit(), 1_000_000);
+        assertEq(_hss().lastScheduleGasLimit(), 2_000_000);
         assertEq(_hss().lastScheduleValue(), 0);
         assertEq(_hss().lastScheduleCallData(), abi.encodeCall(ScheduledKeeper.tick, ()));
     }
@@ -63,9 +63,16 @@ contract ScheduledKeeperTest is Test {
     function test_tickEarlyReverts() public {
         _start();
         uint256 at = keeper.nextRunAt();
-        vm.warp(at - 1);
+        vm.warp(at - 6);
         vm.expectRevert(abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__TooEarly.selector, at));
         keeper.tick();
+    }
+
+    function test_tickAcceptsHederaBlockTimestampLag() public {
+        _start();
+        vm.warp(keeper.nextRunAt() - 5); // block started up to ~2 s before the schedule fired
+        keeper.tick();
+        assertEq(keeper.runCount(), 1);
     }
 
     function test_tickRunsWorkAndBooksNext() public {
@@ -170,11 +177,13 @@ contract ScheduledKeeperTest is Test {
 
     function test_invalidConfigReverts() public {
         vm.expectRevert(ScheduledKeeper.ScheduledKeeper__InvalidConfig.selector);
-        new Heartbeat(0, 1, 0, 0);
+        new Heartbeat(0, 2_000_000, 0, 0);
+        vm.expectRevert(ScheduledKeeper.ScheduledKeeper__InvalidConfig.selector);
+        new Heartbeat(60, 1_500_000, 0, 0); // cannot pay for booking its own next tick
     }
 
     function test_heartbeatStopsAfterMaxBeats() public {
-        Heartbeat hb = new Heartbeat(60, 400_000, 0, 3);
+        Heartbeat hb = new Heartbeat(60, 2_000_000, 0, 3);
         hb.revive();
         for (uint256 i = 0; i < 3; i++) {
             vm.warp(hb.nextRunAt());

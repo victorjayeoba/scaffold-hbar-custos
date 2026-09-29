@@ -1,0 +1,6 @@
+{
+  "networkName": "hedera_testnet",
+  "0x7c7a9C1af0C390233C8BC655CAc714EAdA4bFEa0": "PriceGuard",
+  "0xFF20a2f37d097918404B1482c6E153784baf87F0": "LiquidityPool",
+  "0xB934afcA21c9Fc3d7808e23d25581490F350C03E": "PerpMarket"
+}

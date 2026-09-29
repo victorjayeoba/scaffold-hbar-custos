@@ -233,7 +233,7 @@ function main() {
   Object.entries(allGeneratedContracts).forEach(([chainId, contracts]) => {
     Object.entries(contracts).forEach(([contractName, contractData]) => {
       const deployedName = deployments[chainId]?.[contractData.address];
-      if (deployedName) {
+      if (deployedName && deployedName !== contractName) {
         // If we have a deployment name, use it instead of the contract name
         allGeneratedContracts[chainId][deployedName] = contractData;
         delete allGeneratedContracts[chainId][contractName];

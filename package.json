@@ -23,6 +23,7 @@
     "foundry:deploy": "yarn workspace @sh/foundry deploy",
     "foundry:deploy:testnet": "yarn foundry:deploy --network hedera_testnet",
     "foundry:deploy:mainnet": "yarn foundry:deploy --network hedera_mainnet",
+    "custos:deploy:testnet": "yarn workspace @sh/foundry custos deploy",
     "custos:start:testnet": "yarn workspace @sh/foundry custos start",
     "custos:demo:testnet": "yarn workspace @sh/foundry custos demo",
     "custos:revive:testnet": "yarn workspace @sh/foundry custos revive",

@@ -11,7 +11,8 @@ broadcast/
 # Docs
 docs/
 
-deployments/
+deployments/*
+!deployments/296.json
 .env
 localhost.json
 

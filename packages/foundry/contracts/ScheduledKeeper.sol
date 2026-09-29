@@ -24,8 +24,12 @@ abstract contract ScheduledKeeper {
     int64 internal constant HSS_SUCCESS = int64(int32(HederaResponseCodes.SUCCESS));
     /// @notice How many consecutive seconds `_scheduleNext` tries when a second is full.
     uint256 public constant CAPACITY_PROBES = 10;
-    /// @notice Gas held back from `_work()` so booking the next tick always has enough.
-    uint256 public constant SCHEDULE_GAS_RESERVE = 200_000;
+    /// @notice Gas held back from `_work()` so booking the next tick always has enough. Measured on testnet:
+    ///         `scheduleCall` costs ~1.41M gas whatever gas limit it books, so `gasLimit` must exceed this.
+    uint256 public constant SCHEDULE_GAS_RESERVE = 1_500_000;
+    /// @notice How early `tick()` is accepted. `block.timestamp` is the start of Hedera's ~2 s block, so a
+    ///         schedule that fires exactly at `nextRunAt` can see a timestamp a second or two before it.
+    uint256 public constant TIMESTAMP_TOLERANCE = 5;
 
     uint256 public immutable interval;
     uint256 public immutable gasLimit;
@@ -47,16 +51,19 @@ abstract contract ScheduledKeeper {
     event Stopped(uint256 runs);
 
     constructor(uint256 interval_, uint256 gasLimit_, uint256 runCostEstimate_) {
-        if (interval_ == 0 || gasLimit_ == 0) revert ScheduledKeeper__InvalidConfig();
+        if (interval_ == 0 || gasLimit_ <= SCHEDULE_GAS_RESERVE) revert ScheduledKeeper__InvalidConfig();
         interval = interval_;
         gasLimit = gasLimit_;
         runCostEstimate = runCostEstimate_;
     }
 
-    /// @notice Called by the Schedule Service at `nextRunAt`. Anyone may call it late; calling early reverts.
+    /// @notice Called by the Schedule Service at `nextRunAt`. Anyone may call it late; calling early reverts
+    ///         (more than `TIMESTAMP_TOLERANCE` seconds early).
     function tick() external {
         if (_ticking) revert ScheduledKeeper__Reentrant();
-        if (nextRunAt == 0 || block.timestamp < nextRunAt) revert ScheduledKeeper__TooEarly(nextRunAt);
+        if (nextRunAt == 0 || block.timestamp + TIMESTAMP_TOLERANCE < nextRunAt) {
+            revert ScheduledKeeper__TooEarly(nextRunAt);
+        }
         _ticking = true;
 
         lastRunAt = block.timestamp;

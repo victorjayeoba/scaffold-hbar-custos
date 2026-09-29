@@ -16,7 +16,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         On Hedera testnet it uses Chainlink HBAR/USD, Supra HBAR/USDT and Circle's testnet USDC; on any
  *         other chain it deploys mocks. Starting the keeper and associating USDC need the Hedera system
  *         contracts, which a Foundry script cannot simulate: run `yarn custos:start:testnet` afterwards.
- * @dev Env (all optional): KEEPER_INTERVAL (s, default 600), KEEPER_GAS_LIMIT (default 1,000,000),
+ * @dev Env (all optional): KEEPER_INTERVAL (s, default 600), KEEPER_GAS_LIMIT (default 2,500,000),
  *      KEEPER_RUN_COST (tinybars per run, default 1 HBAR), KEEPER_FUND (wei-bar sent to the reserve, default 20 HBAR).
  */
 contract DeployScript is ScaffoldETHDeploy {
@@ -29,7 +29,7 @@ contract DeployScript is ScaffoldETHDeploy {
 
     function run() external ScaffoldEthDeployerRunner {
         uint256 interval = vm.envOr("KEEPER_INTERVAL", uint256(600));
-        uint256 gasLimit = vm.envOr("KEEPER_GAS_LIMIT", uint256(1_000_000));
+        uint256 gasLimit = vm.envOr("KEEPER_GAS_LIMIT", uint256(2_500_000));
         uint256 runCost = vm.envOr("KEEPER_RUN_COST", uint256(1e8));
         uint256 fund = vm.envOr("KEEPER_FUND", uint256(20 ether));
 
