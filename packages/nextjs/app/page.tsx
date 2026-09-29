@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { NextPage } from "next";
 import { InstallCommand } from "~~/components/custos/InstallCommand";
+import { MetronomeStack } from "~~/components/custos/MetronomeStack";
 import { OracleReadout } from "~~/components/custos/OracleReadout";
 import { ScheduleRail } from "~~/components/custos/ScheduleRail";
 
@@ -58,24 +59,39 @@ const setupSteps = [
 const Home: NextPage = () => {
   return (
     <div className="flex grow flex-col">
-      <section className="custos-night text-white">
-        <div className="mx-auto max-w-6xl px-5 pt-16 pb-14 sm:pt-24">
-          <h1 className="max-w-3xl text-[clamp(2.75rem,7vw,5.25rem)] font-normal leading-[1.02] tracking-[-0.02em]">
-            Margin kept by the network.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/80">
-            Custos is a Scaffold-HBAR template for margin trading on Hedera. Liquidations and funding run on
-            Hedera&apos;s own Schedule Service, so there is no keeper bot to host, fund or wake up.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
-              Read the code on GitHub
-            </a>
-            <Link href="/debug" className="btn btn-ghost text-white hover:bg-white/10">
-              Open the contracts
-            </Link>
+      <section className="bg-black text-white">
+        <div className="mx-auto max-w-7xl px-5 pt-12 pb-14 sm:pt-16">
+          <div className="grid items-center gap-8 lg:grid-cols-[1.1fr_1fr]">
+            <div>
+              <h1 className="text-[clamp(2.75rem,6.5vw,5rem)] font-normal leading-[1.05] tracking-[-0.02em]">
+                Margin kept by the network.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/85">
+                Custos is a Scaffold-HBAR template for margin trading on Hedera. Liquidations and funding run on
+                Hedera&apos;s own Schedule Service, so there is no keeper bot to host, fund or wake up.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <a
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn rounded-full border-0 bg-hedera-ultraviolet px-6 text-white shadow-none hover:bg-hedera-violet"
+                >
+                  Read the code on GitHub
+                </a>
+                <Link
+                  href="/debug"
+                  className="btn rounded-full border border-white bg-transparent px-6 text-white shadow-none hover:bg-white hover:text-black"
+                >
+                  Open the contracts
+                </Link>
+              </div>
+            </div>
+            <div className="flex justify-center overflow-hidden max-lg:h-[340px] max-lg:[&>div]:scale-[0.7] max-lg:[&>div]:origin-top">
+              <MetronomeStack />
+            </div>
           </div>
-          <div className="mt-16 max-w-4xl">
+          <div className="mt-10 max-w-4xl">
             <ScheduleRail />
           </div>
         </div>

@@ -149,6 +149,75 @@
   background: linear-gradient(180deg, #000 0%, #0c0a1a 12%, #201a72 55%, #3d2db3 100%);
 }
 
+/* Glass-slab metronome (components/custos/MetronomeStack.tsx), after Hedera.com's layered "H". */
+.custos-stack-scene {
+  width: 420px;
+  height: 500px;
+  perspective: 1400px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* One soft glow behind the whole object; per-slab shadows are too costly to repaint every frame. */
+  background: radial-gradient(closest-side, rgb(130 89 239 / 0.35), transparent);
+}
+
+.custos-stack {
+  position: relative;
+  width: 0;
+  height: 400px;
+  margin-top: 70px;
+  transform-style: preserve-3d;
+  transform: rotateX(-22deg) rotateY(-34deg);
+}
+
+.custos-slab {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  border: 1px solid rgb(196 181 253 / 0.85);
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgb(130 89 239 / 0.75), rgb(79 70 229 / 0.4) 60%, rgb(45 132 235 / 0.4));
+}
+
+.custos-arm {
+  position: absolute;
+  left: -7px;
+  width: 14px;
+  border-radius: 7px;
+  transform-origin: 50% 100%;
+  background: linear-gradient(180deg, #ffffff, #c4b5fd 40%, #8259ef);
+  animation: custos-swing 2.4s ease-in-out infinite alternate;
+}
+
+.custos-weight {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 52px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.9);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.95), rgb(196 181 253 / 0.8));
+}
+
+@keyframes custos-swing {
+  from {
+    transform: rotate(-17deg);
+  }
+  to {
+    transform: rotate(17deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custos-arm {
+    animation: none;
+    transform: rotate(-12deg);
+  }
+}
+
 .hedera-gradient-text {
   background: linear-gradient(135deg, #8259ef 0%, #0031ff 100%);
   -webkit-background-clip: text;
