@@ -13,6 +13,18 @@ Everything below can be checked on HashScan. Addresses are also in [`deployments
 Keeper: interval 1,800 s, gas limit 2,500,000, 40 ℏ fee reserve. PriceGuard: max staleness 7,200 s, max deviation 500 bps.
 First tick booked on the Schedule Service as [0.0.10776713](https://hashscan.io/testnet/schedule/0.0.10776713).
 
+## The network keeps the market
+
+Every tick below was executed by the Schedule Service from a schedule the previous tick booked. No one signed them.
+
+| Tick | Schedule | Executed | What it did |
+| --- | --- | --- | --- |
+| 1 | [0.0.10776713](https://hashscan.io/testnet/schedule/0.0.10776713) | [1790687748.000592261](https://hashscan.io/testnet/transaction/1790687748.000592261) | Funding accrued, swept 2 traders, none underwater |
+| 2 | [0.0.10777055](https://hashscan.io/testnet/schedule/0.0.10777055) | [1790689547.018645425](https://hashscan.io/testnet/transaction/1790689547.018645425) | Swept 2 traders, none underwater yet |
+| 3 | [0.0.10777398](https://hashscan.io/testnet/schedule/0.0.10777398) | [1790691346.057913123](https://hashscan.io/testnet/transaction/1790691346.057913123) | **Liquidated** the 50x long `0xA807…6Ec6` at 0.11304294 (liquidation price 0.11353): `Liquidated(byNetwork = true, reward = 0)`, all 0.1425 USDC collateral to the pool |
+
+Tick 3 ran one second before its `nextRunAt` (Hedera's block timestamp lag), which the 5 s tolerance absorbs.
+
 ## The keeper books itself (Heartbeat, M1)
 
 [`Heartbeat`](contracts/examples/Heartbeat.sol) [0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628) ticked three times, 60 s apart, each run executed by the network from a schedule the previous run created:
