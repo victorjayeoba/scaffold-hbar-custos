@@ -11,12 +11,15 @@ import { ScheduledKeeper } from "./ScheduledKeeper.sol";
 import { PriceGuard } from "./PriceGuard.sol";
 import { LiquidityPool } from "./LiquidityPool.sol";
 import { IHRC719 } from "./interfaces/IHRC719.sol";
+import { ISaucerSwapRouter } from "./interfaces/ISaucerSwapRouter.sol";
 
 /**
  * @title PerpMarket
  * @notice HBAR-USD perpetual market settled in USDC, kept by the Hedera network: every `interval` the
  *         Schedule Service calls `tick()`, which accrues funding and liquidates underwater positions.
  *         Nothing is liquidated at a stale or deviated price. When prices are bad the market is close-only.
+ *         SaucerSwap does the two conversions the market needs: a trader can open with HBAR alone
+ *         (`openWithHbar`), and the keeper refuels its HBAR fee reserve from the pool's spare USDC (`refuel`).
  */
 contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -30,6 +33,9 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     error PerpMarket__HoldTime(uint256 closeableAt);
     error PerpMarket__NoPrice();
     error PerpMarket__NotLiquidatable();
+    error PerpMarket__SwapDisabled();
+    error PerpMarket__ReserveNotLow(uint256 runsLeft);
+    error PerpMarket__NothingToSpend();
 
     uint256 public constant OPEN_FEE_BPS = 10;
     uint256 public constant CLOSE_FEE_BPS = 10;
@@ -40,10 +46,22 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     uint256 public constant MAX_OPEN_INTEREST_BPS = 5_000;
     /// @notice The sweep stops early (and resumes next tick) when less gas than this is left.
     uint256 public constant SWEEP_GAS_PER_TRADER = 150_000;
+    /// @notice The keeper refuels when its reserve covers fewer runs than this...
+    uint256 public constant REFUEL_BELOW_RUNS = 12;
+    /// @notice ...back up to this many runs...
+    uint256 public constant REFUEL_TARGET_RUNS = 48;
+    /// @notice ...spending at most this much of the pool's free USDC per refuel.
+    uint256 public constant REFUEL_MAX_USDC = 50e6;
+    /// @notice Slippage allowed against SaucerSwap's own quote when the keeper swaps.
+    uint256 public constant REFUEL_SLIPPAGE_BPS = 100;
 
     IERC20 public immutable usdc;
     PriceGuard public immutable guard;
     LiquidityPool public immutable pool;
+    /// @notice SaucerSwap V1 router (zero disables the HBAR paths).
+    ISaucerSwapRouter public immutable router;
+    /// @notice The WHBAR token SaucerSwap paths start or end with.
+    address public immutable whbar;
 
     /// @notice Where the next sweep starts in `traders`.
     uint256 public cursor;
@@ -63,6 +81,8 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     event Swept(uint256 from, uint256 to, uint256 liquidated);
     event SweepSkipped(PriceGuard.Status status);
     event Associated(bool ok, uint256 responseCode);
+    event SwappedHbarForCollateral(address indexed trader, uint256 hbarIn, uint256 usdcOut);
+    event Refueled(uint256 usdcIn, uint256 hbarOut, uint256 runsBefore);
 
     constructor(
         address usdc_,
@@ -71,14 +91,19 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         address owner_,
         uint256 interval_,
         uint256 gasLimit_,
-        uint256 runCostEstimate_
+        uint256 runCostEstimate_,
+        address router_,
+        address whbar_
     ) ScheduledKeeper(interval_, gasLimit_, runCostEstimate_) Ownable(owner_) {
         if (usdc_ == address(0) || guard_ == address(0) || pool_ == address(0)) {
             revert PerpMarket__InvalidAddress();
         }
+        if ((router_ == address(0)) != (whbar_ == address(0))) revert PerpMarket__InvalidAddress();
         usdc = IERC20(usdc_);
         guard = PriceGuard(guard_);
         pool = LiquidityPool(pool_);
+        router = ISaucerSwapRouter(router_);
+        whbar = whbar_;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -89,8 +114,27 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     /// @param collateral USDC (6 dp) pulled from the caller; the open fee is taken from it
     function open(bool isLong, uint256 collateral, uint256 leverage) external nonReentrant {
         if (collateral == 0) revert PerpMarket__ZeroAmount();
+        usdc.safeTransferFrom(msg.sender, address(this), collateral);
+        _open(msg.sender, isLong, collateral, leverage);
+    }
+
+    /// @notice Opens a position with HBAR alone: SaucerSwap swaps `msg.value` to USDC collateral first.
+    /// @param minCollateral the least USDC the swap may return (quote with `quoteHbarToUsdc`, minus slippage)
+    function openWithHbar(bool isLong, uint256 leverage, uint256 minCollateral) external payable nonReentrant {
+        if (msg.value == 0) revert PerpMarket__ZeroAmount();
+        if (address(router) == address(0)) revert PerpMarket__SwapDisabled();
+        uint256 collateral = router.swapExactETHForTokens{ value: msg.value }(
+            minCollateral, _path(whbar, address(usdc)), address(this), block.timestamp
+        )[1];
+        emit SwappedHbarForCollateral(msg.sender, msg.value, collateral);
+        _open(msg.sender, isLong, collateral, leverage);
+    }
+
+    /// @dev Collateral is already in the market.
+    function _open(address trader, bool isLong, uint256 collateral, uint256 leverage) internal {
+        if (collateral == 0) revert PerpMarket__ZeroAmount();
         if (leverage == 0 || leverage > MAX_LEVERAGE) revert PerpMarket__InvalidLeverage();
-        if (_positions[msg.sender].size != 0) revert PerpMarket__PositionExists();
+        if (_positions[trader].size != 0) revert PerpMarket__PositionExists();
 
         uint256 price = guard.price();
         _accrueFunding();
@@ -104,11 +148,10 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         int256 size = int256(notional * USDC_PER_SIZE_PRICE / price);
         if (!isLong) size = -size;
 
-        usdc.safeTransferFrom(msg.sender, address(this), collateral);
         usdc.safeTransfer(address(pool), fee);
-        _addPosition(msg.sender, size, collateral - fee, price, notional);
+        _addPosition(trader, size, collateral - fee, price, notional);
 
-        emit Opened(msg.sender, isLong, size, collateral - fee, price, leverage, fee);
+        emit Opened(trader, isLong, size, collateral - fee, price, leverage, fee);
     }
 
     /// @notice Closes the caller's position after `MIN_HOLD_SECONDS`. Works in close-only mode too,
@@ -153,9 +196,37 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         _liquidate(trader, price, msg.sender);
     }
 
+    /// @notice Tops up the keeper's HBAR reserve when it covers fewer than `REFUEL_BELOW_RUNS` runs: the pool pays
+    ///         USDC it doesn't need for open positions, and SaucerSwap swaps it to HBAR. The keeper tries this
+    ///         itself every tick; anyone may call it.
+    function refuel() external nonReentrant returns (uint256 hbarOut) {
+        if (address(router) == address(0) || runCostEstimate == 0) revert PerpMarket__SwapDisabled();
+        uint256 runs = address(this).balance / runCostEstimate;
+        if (runs >= REFUEL_BELOW_RUNS) revert PerpMarket__ReserveNotLow(runs);
+
+        address[] memory path = _path(address(usdc), whbar);
+        uint256 usdcIn = router.getAmountsIn((REFUEL_TARGET_RUNS - runs) * runCostEstimate, path)[0];
+        uint256 free = pool.freeAssets();
+        if (usdcIn > free) usdcIn = free;
+        if (usdcIn > REFUEL_MAX_USDC) usdcIn = REFUEL_MAX_USDC;
+        if (usdcIn == 0) revert PerpMarket__NothingToSpend();
+
+        pool.payKeeper(usdcIn);
+        uint256 minOut = router.getAmountsOut(usdcIn, path)[1] * (BPS - REFUEL_SLIPPAGE_BPS) / BPS;
+        usdc.forceApprove(address(router), usdcIn);
+        hbarOut = router.swapExactTokensForETH(usdcIn, minOut, path, address(this), block.timestamp)[1];
+        emit Refueled(usdcIn, hbarOut, runs);
+    }
+
     /*//////////////////////////////////////////////////////////////
                                 VIEWS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice USDC SaucerSwap would give for `hbar` (tinybars on Hedera) right now.
+    function quoteHbarToUsdc(uint256 hbar) external view returns (uint256) {
+        if (address(router) == address(0)) revert PerpMarket__SwapDisabled();
+        return router.getAmountsOut(hbar, _path(whbar, address(usdc)))[1];
+    }
 
     /// @notice USDC the pool must keep for open positions (withdrawals stop here).
     function requiredLiquidity() external view returns (uint256) {
@@ -179,15 +250,21 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
                               INTERNALS
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Every tick: accrue funding, then sweep one page of traders if the price is `Ok`.
+    /// @dev Every tick: accrue funding, sweep one page of traders if the price is `Ok`, refuel if running low.
     function _work() internal override {
         _accrueFunding();
         (uint256 price, PriceGuard.Status status,,,) = guard.read();
-        if (status != PriceGuard.Status.Ok) {
-            emit SweepSkipped(status);
-            return;
-        }
+        if (status == PriceGuard.Status.Ok) _sweep(price);
+        else emit SweepSkipped(status);
 
+        if (address(router) != address(0) && runCostEstimate > 0) {
+            if (address(this).balance / runCostEstimate < REFUEL_BELOW_RUNS) {
+                try this.refuel() { } catch { } // a failed refuel must never undo the sweep
+            }
+        }
+    }
+
+    function _sweep(uint256 price) internal {
         uint256 from = cursor;
         uint256 i = from < traders.length ? from : 0;
         uint256 checked;
@@ -230,6 +307,12 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
             if (payout > 0) usdc.safeTransfer(trader, payout);
             usdc.safeTransfer(address(pool), collateral - payout);
         }
+    }
+
+    function _path(address from, address to) internal pure returns (address[] memory path) {
+        path = new address[](2);
+        path[0] = from;
+        path[1] = to;
     }
 
     function _fundingPoolAssets() internal view override returns (uint256) {

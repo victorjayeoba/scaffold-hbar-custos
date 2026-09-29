@@ -6,6 +6,7 @@ import { CustosBase } from "./CustosBase.sol";
 import { PerpMarket } from "../contracts/PerpMarket.sol";
 import { MarginAccount } from "../contracts/MarginAccount.sol";
 import { PriceGuard } from "../contracts/PriceGuard.sol";
+import { LiquidityPool } from "../contracts/LiquidityPool.sol";
 
 contract PerpMarketTest is CustosBase {
     /*//////////////////////////////////////////////////////////////
@@ -321,6 +322,126 @@ contract PerpMarketTest is CustosBase {
     }
 
     /*//////////////////////////////////////////////////////////////
+                         SAUCERSWAP: OPEN WITH HBAR
+    //////////////////////////////////////////////////////////////*/
+
+    function test_openWithHbarSwapsToCollateral() public {
+        vm.deal(alice, 10e8);
+        assertEq(market.quoteHbarToUsdc(10e8), 22.7e6); // 10 HBAR at 2.27 USDC
+        vm.expectEmit(true, false, false, true, address(market));
+        emit PerpMarket.SwappedHbarForCollateral(alice, 10e8, 22.7e6);
+        vm.prank(alice);
+        market.openWithHbar{ value: 10e8 }(true, 10, 22.7e6);
+
+        MarginAccount.Position memory p = market.positionOf(alice);
+        assertEq(p.entryNotional, 227e6);
+        assertEq(p.collateral, 22.7e6 - 0.227e6); // open fee 10 bps of notional
+        assertEq(usdc.balanceOf(address(market)), p.collateral);
+        assertEq(address(router).balance, 1_000_000e8 + 10e8);
+    }
+
+    function test_openWithHbarRespectsSlippage() public {
+        vm.deal(alice, 10e8);
+        vm.prank(alice);
+        vm.expectRevert(bytes("slippage"));
+        market.openWithHbar{ value: 10e8 }(true, 10, 22.7e6 + 1);
+    }
+
+    function test_openWithHbarRejectsZeroAndDisabled() public {
+        vm.prank(alice);
+        vm.expectRevert(PerpMarket.PerpMarket__ZeroAmount.selector);
+        market.openWithHbar(true, 10, 0);
+
+        PerpMarket noSwap = new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 1e8, address(0), address(0)
+        );
+        vm.deal(alice, 1e8);
+        vm.prank(alice);
+        vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
+        noSwap.openWithHbar{ value: 1e8 }(true, 10, 0);
+        vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
+        noSwap.refuel();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      SAUCERSWAP: SELF-FUNDING KEEPER
+    //////////////////////////////////////////////////////////////*/
+
+    function test_refuelSwapsPoolUsdcToHbar() public {
+        vm.deal(address(market), 5e8); // 5 runs left, under the line of 12
+        uint256 poolBefore = usdc.balanceOf(address(pool));
+
+        // wants (48 - 5) runs = 43 HBAR ≈ 97.61 USDC, capped at 50 USDC per refuel
+        vm.expectEmit(false, false, false, true, address(market));
+        emit PerpMarket.Refueled(50e6, uint256(50e6) * 1e8 / 2_270_000, 5);
+        uint256 hbarOut = market.refuel();
+
+        assertEq(poolBefore - usdc.balanceOf(address(pool)), 50e6);
+        assertEq(address(market).balance, 5e8 + hbarOut);
+        assertEq(usdc.balanceOf(address(market)), 0); // nothing left over in the market
+        assertEq(market.runsLeft(), 27);
+    }
+
+    function test_refuelBuysOnlyWhatItNeeds() public {
+        vm.deal(address(market), 11e8); // one run short of the line: wants 37 HBAR ≈ 83.99 USDC → capped at 50
+        router.setRate(1_000_000); // 1 HBAR = 1 USDC: wants 37 USDC, under the cap
+        market.refuel();
+        assertEq(market.runsLeft(), 48);
+    }
+
+    function test_refuelOnlyWhenLow() public {
+        vm.expectRevert(abi.encodeWithSelector(PerpMarket.PerpMarket__ReserveNotLow.selector, 100));
+        market.refuel();
+    }
+
+    function test_refuelNeverTouchesLiquidityPositionsNeed() public {
+        _open(alice, true, 100e6, 10); // pool must keep 2,000
+        uint256 max = pool.maxWithdraw(lp);
+        vm.prank(lp);
+        pool.withdraw(max, lp, lp);
+        vm.deal(address(market), 1e8);
+
+        uint256 free = pool.freeAssets();
+        if (free == 0) {
+            vm.expectRevert(PerpMarket.PerpMarket__NothingToSpend.selector);
+            market.refuel();
+        } else {
+            market.refuel();
+        }
+        assertGe(pool.totalAssets(), pool.requiredLiquidity());
+    }
+
+    function test_onlyMarketPaysKeeper() public {
+        vm.expectRevert(LiquidityPool.LiquidityPool__OnlyMarket.selector);
+        pool.payKeeper(1);
+    }
+
+    function test_tickRefuelsWhenLow() public {
+        market.revive();
+        vm.deal(address(market), 5e8);
+        vm.warp(market.nextRunAt());
+        vm.expectEmit(false, false, false, false, address(market));
+        emit PerpMarket.Refueled(0, 0, 0);
+        market.tick();
+        assertGt(market.runsLeft(), 12);
+        assertEq(market.nextRunAt(), block.timestamp + 300);
+    }
+
+    function test_failedRefuelNeverUndoesTheSweep() public {
+        _open(alice, true, 10e6, 50);
+        market.revive();
+        vm.deal(address(market), 5e8);
+        router.setRate(0); // SaucerSwap quote breaks: refuel reverts
+        vm.warp(market.nextRunAt());
+        _setPrice(11_880_000);
+        market.tick();
+
+        assertEq(market.positionOf(alice).size, 0); // liquidated anyway
+        assertEq(market.nextRunAt(), block.timestamp + 300);
+        assertEq(address(market).balance, 5e8);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                 ADMIN
     //////////////////////////////////////////////////////////////*/
 
@@ -343,6 +464,12 @@ contract PerpMarketTest is CustosBase {
 
     function test_constructorRejectsZeroAddresses() public {
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector);
-        new PerpMarket(address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0);
+        new PerpMarket(
+            address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0)
+        );
+        vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector); // router without WHBAR
+        new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(router), address(0)
+        );
     }
 }

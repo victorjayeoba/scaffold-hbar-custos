@@ -129,6 +129,13 @@ contract Handler is Test {
         market.liquidate(a);
     }
 
+    /// @dev The keeper's reserve runs low and it refuels from the pool through SaucerSwap.
+    function refuel(uint256 runs) external {
+        justSweptAtOkPrice = false;
+        vm.deal(address(market), bound(runs, 0, 20) * market.runCostEstimate());
+        try market.refuel() { } catch { }
+    }
+
     function tick() external {
         if (market.nextRunAt() == 0) market.revive();
         if (market.nextRunAt() > block.timestamp) vm.warp(market.nextRunAt()); // time only moves forward
