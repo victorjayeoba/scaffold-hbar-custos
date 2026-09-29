@@ -2,7 +2,7 @@ import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
 
 /** Same limits as PriceGuard.sol, so the page and the contract agree on when trading stops. */
 export const MAX_STALENESS_SECONDS = 7200;
-export const MAX_DEVIATION_BPS = 300;
+export const MAX_DEVIATION_BPS = 500;
 const SUPRA_HBAR_USDT_PAIR = 75n;
 
 export type FeedStatus = "loading" | "ok" | "stale" | "deviated";

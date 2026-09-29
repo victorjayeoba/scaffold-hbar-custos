@@ -11,7 +11,7 @@ const verdict = {
     tone: "text-warning",
   },
   deviated: {
-    text: "The feeds disagree by more than 3%. The market is close-only and the keeper skips liquidations.",
+    text: "The feeds disagree by more than 5%. The market is close-only and the keeper skips liquidations.",
     tone: "text-error",
   },
 } as const;

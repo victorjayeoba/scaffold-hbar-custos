@@ -4,7 +4,6 @@ import { InstallCommand } from "~~/components/custos/InstallCommand";
 import { OracleReadout } from "~~/components/custos/OracleReadout";
 import { ScheduleRail } from "~~/components/custos/ScheduleRail";
 
-const KEEPER_INTERVAL_SECONDS = 600;
 const REPO_URL = "https://github.com/victorjayeoba/scaffold-hbar-custos";
 
 // What happens inside one scheduled run, in order. This is a real sequence, so it's numbered.
@@ -77,7 +76,7 @@ const Home: NextPage = () => {
             </Link>
           </div>
           <div className="mt-16 max-w-4xl">
-            <ScheduleRail interval={KEEPER_INTERVAL_SECONDS} />
+            <ScheduleRail />
           </div>
         </div>
       </section>
@@ -94,7 +93,7 @@ const Home: NextPage = () => {
       <section className="w-full bg-base-100">
         <div className="mx-auto grid max-w-6xl gap-10 px-5 py-16 lg:grid-cols-[1fr_1.4fr]">
           <div>
-            <h2 className="text-3xl font-normal tracking-[-0.01em]">What the network does every ten minutes</h2>
+            <h2 className="text-3xl font-normal tracking-[-0.01em]">What the network does every thirty minutes</h2>
             <p className="mt-3 text-base-content/70">
               Other chains rent this job to Gelato, Chainlink Automation or a team&apos;s own bot. Hedera can book a
               contract call for later, so the market keeps itself.
