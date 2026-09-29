@@ -29,6 +29,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: yarn
 
+      # yarn install runs the Foundry package's postinstall (forge compile), so forge must exist first
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Install dependencies
         run: yarn install --immutable
 
