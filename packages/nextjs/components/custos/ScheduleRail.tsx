@@ -42,7 +42,10 @@ export const ScheduleRail = ({ interval, nextRunAt }: Props) => {
           </div>
         ))}
         <div className="absolute top-4 bottom-8 w-px bg-white/60" style={{ left: at(now) }}>
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[11px] text-white/70">now</div>
+          {/* The label would sit on the booked marker in the last stretch before a run. */}
+          {next - now > interval / 4 && (
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[11px] text-white/70">now</div>
+          )}
         </div>
         <div className="absolute top-10 -translate-x-1/2 -translate-y-1/2" style={{ left: at(next) }}>
           <div className="relative h-4 w-4 rounded-full border-2 border-white bg-[#11151d]">

@@ -4,6 +4,6 @@
  */
 import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 
-const deployedContracts = {} as const;
+const deployedContracts = { 296: {} } as const;
 
 export default deployedContracts satisfies GenericContractsDeclaration;

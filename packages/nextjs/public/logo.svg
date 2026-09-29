@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Custos">
+  <defs>
+    <!-- Hedera.com night gradient, top to bottom -->
+    <linearGradient id="custos-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c0a1a"/>
+      <stop offset="0.55" stop-color="#201a72"/>
+      <stop offset="1" stop-color="#3d2db3"/>
+    </linearGradient>
+    <!-- Metronome body: solid trapezoid with a window cut out, so the tile shows through -->
+    <mask id="custos-body">
+      <path d="M208 84H304L396 424H116Z" fill="#fff" stroke="#fff" stroke-width="28" stroke-linejoin="round"/>
+      <path d="M226 134H286L340 348H172Z" fill="#000" stroke="#000" stroke-width="10" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#custos-bg)"/>
+  <rect width="512" height="512" fill="#fff" mask="url(#custos-body)"/>
+  <!-- Pendulum: the arm swings inside the window -->
+  <path d="M256 334L282 164" stroke="#fff" stroke-width="18" stroke-linecap="round"/>
+  <!-- Weight: the ring-and-dot "next booked check" from the site's schedule rail -->
+  <circle cx="269" cy="246" r="28" fill="#201a72" stroke="#fff" stroke-width="12"/>
+  <circle cx="269" cy="246" r="9" fill="#fff"/>
+</svg>

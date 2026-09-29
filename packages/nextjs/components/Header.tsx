@@ -80,8 +80,7 @@ export const Header = () => {
         </details>
         <Link href="/" passHref className="hidden lg:flex items-center gap-3 ml-4 mr-6 shrink-0">
           <div className="flex relative w-9 h-9">
-            <Image alt="Hedera icon" className="cursor-pointer dark:hidden" fill src="/Hedera-Icon-Dark.svg" />
-            <Image alt="Hedera icon" className="cursor-pointer hidden dark:block" fill src="/Hedera-Icon-White.svg" />
+            <Image alt="Custos logo" className="cursor-pointer" fill src="/logo.svg" />
           </div>
           <div className="flex flex-col">
             <span className="font-bold leading-tight text-base">Custos</span>
