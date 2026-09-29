@@ -4,14 +4,15 @@
 //   yarn custos:deploy:testnet   PriceGuard → LiquidityPool → PerpMarket, link them, fund the keeper,
 //                                write deployments/296.json and regenerate the frontend's deployedContracts.ts
 //   yarn custos:start:testnet    associate pool + market with USDC, book the keeper's first tick
-//   yarn custos:demo:testnet     seed the pool and open a 50x long that a ~1% drop liquidates
+//   yarn custos:demo:testnet     swap HBAR to USDC on SaucerSwap and seed the pool, then open a 50x long with
+//                                HBAR alone (openWithHbar) that a ~1% drop liquidates
 //   yarn custos:revive:testnet   restart the keeper if its chain broke
 //
 // Signer: --keystore <name> (or ETH_KEYSTORE_ACCOUNT; cast reads ETH_PASSWORD if set, else prompts),
 //         or DEPLOYER_PRIVATE_KEY in the environment (never write it into a file).
-// Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 2500000),
+// Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 6000000),
 //                  KEEPER_RUN_COST tinybars (default 165000000), KEEPER_FUND HBAR (default 40).
-// Demo (USDC, 6 dp): DEMO_POOL_USDC (default 100000000 = 100), DEMO_COLLATERAL (default 1000000 = 1).
+// Demo (HBAR): DEMO_POOL_HBAR swapped to USDC for the pool (default 50), DEMO_TRADE_HBAR per position (default 0.2).
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -24,7 +25,11 @@ const RPC = process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
 const CHAINLINK_HBAR_USD = "0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a";
 const SUPRA = "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917";
 const SUPRA_HBAR_USDT = "75";
-const USDC = "0x0000000000000000000000000000000000068cDa"; // 0.0.429274
+// SaucerSwap testnet: the USDC its pools trade (0.0.5449), the V1 router (0.0.19264) and the WHBAR token (0.0.15058).
+// On mainnet: Circle USDC 0.0.456858, router 0.0.3045981, WHBAR 0.0.1456986.
+const USDC = "0x0000000000000000000000000000000000001549";
+const ROUTER = "0x0000000000000000000000000000000000004b40";
+const WHBAR = "0x0000000000000000000000000000000000003aD2";
 const DEPLOYMENTS = join(ROOT, "deployments", "296.json");
 const shell = process.platform === "win32";
 
@@ -86,6 +91,12 @@ function deployer() {
   return run("Deployer address", "cast", ["wallet", "address", "--account", keystore], true).trim(); // prettier-ignore
 }
 
+function call(to, sig, args = []) {
+  return run(`Read ${sig.split("(")[0]}`, "cast", ["call", to, sig, ...args, "--rpc-url", RPC], true) // prettier-ignore
+    .trim()
+    .split(" ")[0];
+}
+
 function deployed() {
   if (!existsSync(DEPLOYMENTS)) {
     console.error("❌ No deployments/296.json. Run `yarn custos:deploy:testnet` first."); // prettier-ignore
@@ -136,16 +147,16 @@ async function main() {
   if (command === "deploy") {
     const owner = deployer();
     const interval = process.env.KEEPER_INTERVAL || "1800";
-    const gasLimit = process.env.KEEPER_GAS_LIMIT || "2500000";
+    const gasLimit = process.env.KEEPER_GAS_LIMIT || "6000000";
     const runCost = process.env.KEEPER_RUN_COST || "165000000";
     const fund = process.env.KEEPER_FUND || "40";
     run("Compile", "forge", ["build"]);
     const guard = create("PriceGuard", [
-      CHAINLINK_HBAR_USD, SUPRA, SUPRA_HBAR_USDT, "7200", "300", owner,
+      CHAINLINK_HBAR_USD, SUPRA, SUPRA_HBAR_USDT, "7200", "500", owner,
     ]); // prettier-ignore
     const pool = create("LiquidityPool", [USDC, owner]);
     const market = create("PerpMarket", [
-      USDC, guard.address, pool.address, owner, interval, gasLimit, runCost,
+      USDC, guard.address, pool.address, owner, interval, gasLimit, runCost, ROUTER, WHBAR,
     ]); // prettier-ignore
     send("Link the pool to the market", pool.address, "setMarket(address)", [market.address]); // prettier-ignore
     send("Fund the keeper's fee reserve", market.address, "fund()", [], 100_000, `${fund}ether`); // prettier-ignore
@@ -158,16 +169,27 @@ async function main() {
   if (command === "start") {
     send("Associate the pool with USDC", pool, "associate()");
     send("Associate the market with USDC", market, "associate()");
-    send("Book the keeper's first tick", market, "revive()", [], 1_700_000);
+    send("Book the keeper's first tick", market, "revive()", [], 2_000_000);
   }
 
   if (command === "demo") {
-    const poolUsdc = process.env.DEMO_POOL_USDC || "100000000";
-    const collateral = process.env.DEMO_COLLATERAL || "1000000";
-    send("Approve the pool to take USDC", USDC, "approve(address,uint256)", [pool, poolUsdc]); // prettier-ignore
-    send("Deposit into the pool", pool, "deposit(uint256,address)", [poolUsdc, deployer()]); // prettier-ignore
-    send("Approve the market to take collateral", USDC, "approve(address,uint256)", [market, collateral]); // prettier-ignore
-    send("Open a 50x long", market, "open(bool,uint256,uint256)", ["true", collateral, "50"], 1_500_000); // prettier-ignore
+    const me = deployer();
+    const poolHbar = process.env.DEMO_POOL_HBAR || "50";
+    const tradeHbar = process.env.DEMO_TRADE_HBAR || "0.2";
+    send(
+      "Associate your account with USDC (a no-op if already done)",
+      USDC,
+      "associate()"
+    );
+    const before = BigInt(call(USDC, "balanceOf(address)(uint256)", [me]));
+    send(`Swap ${poolHbar} HBAR to USDC on SaucerSwap`, ROUTER, "swapExactETHForTokens(uint256,address[],address,uint256)", ["0", `[${WHBAR},${USDC}]`, me, String(Math.floor(Date.now() / 1000) + 600)], 1_500_000, `${poolHbar}ether`); // prettier-ignore
+    const got = (BigInt(call(USDC, "balanceOf(address)(uint256)", [me])) - before).toString(); // prettier-ignore
+    send("Approve the pool to take that USDC", USDC, "approve(address,uint256)", [pool, got]); // prettier-ignore
+    send(`Deposit ${Number(got) / 1e6} USDC into the pool`, pool, "deposit(uint256,address)", [got, me]); // prettier-ignore
+    const tinybars = String(Math.round(Number(tradeHbar) * 1e8));
+    const quote = BigInt(call(market, "quoteHbarToUsdc(uint256)(uint256)", [tinybars])); // prettier-ignore
+    const min = ((quote * 99n) / 100n).toString();
+    send(`Open a 50x long with ${tradeHbar} HBAR (SaucerSwap swaps it to collateral)`, market, "openWithHbar(bool,uint256,uint256)", ["true", "50", min], 3_000_000, `${tradeHbar}ether`); // prettier-ignore
   }
 
   if (command === "revive") {
