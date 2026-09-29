@@ -144,6 +144,11 @@
   background: linear-gradient(135deg, #8259ef 0%, #0031ff 100%);
 }
 
+/* Hedera.com's night gradient: black at the top fading into indigo and violet. */
+.custos-night {
+  background: linear-gradient(180deg, #000 0%, #0c0a1a 12%, #201a72 55%, #3d2db3 100%);
+}
+
 .hedera-gradient-text {
   background: linear-gradient(135deg, #8259ef 0%, #0031ff 100%);
   -webkit-background-clip: text;

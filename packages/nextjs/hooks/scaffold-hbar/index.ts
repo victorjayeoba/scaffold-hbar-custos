@@ -1,6 +1,5 @@
 export * from "./useContractLogs";
 export * from "./useCopyToClipboard";
-export * from "./useCreateVault";
 export * from "./useDeployedContractInfo";
 export * from "./useFetchBlocks";
 export * from "./useFetchHbarPrice";

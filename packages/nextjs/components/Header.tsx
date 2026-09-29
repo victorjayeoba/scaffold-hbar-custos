@@ -4,7 +4,7 @@ import React, { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowPathIcon, Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, BugAntIcon, HomeIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-hbar";
 import { useOutsideClick } from "~~/hooks/scaffold-hbar";
 
@@ -16,9 +16,9 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "DCA",
+    label: "Home",
     href: "/",
-    icon: <ArrowPathIcon className="h-4 w-4" />,
+    icon: <HomeIcon className="h-4 w-4" />,
   },
   {
     label: "Debug Contracts",
@@ -84,10 +84,8 @@ export const Header = () => {
             <Image alt="Hedera icon" className="cursor-pointer hidden dark:block" fill src="/Hedera-Icon-White.svg" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold leading-tight text-base">Scaffold-HBAR</span>
-            <span className="text-[10px] tracking-wider uppercase text-base-content/50 font-medium">
-              Built on Hedera
-            </span>
+            <span className="font-bold leading-tight text-base">Custos</span>
+            <span className="text-[11px] text-base-content/60">Kept by the Hedera network</span>
           </div>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
