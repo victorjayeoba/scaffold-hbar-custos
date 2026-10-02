@@ -10,11 +10,15 @@ import { HederaResponseCodes } from "hedera-forking/HederaResponseCodes.sol";
  * @notice Runs `_work()` every `interval` seconds with no bot: each `tick()` books the next one on the
  *         Hedera Schedule Service (HIP-1215). The contract pays for its own scheduled runs from its HBAR
  *         balance, so keep it funded with `fund()`.
- * @dev A failing `_work()` never breaks the chain: it runs in a self-call and the next tick is booked either way.
+ * @dev Only the network can tick. When the Schedule Service executes a call the contract booked, `msg.sender`
+ *      (and `tx.origin`) is the contract itself (verified on Hedera testnet), so `tick()` accepts nothing else.
+ *      Nobody can tick early, skip work, or make a booked run revert.
+ *      A failing `_work()` never breaks the chain: it runs in a self-call and the next tick is booked either way.
  *      If the chain does break (no capacity, empty reserve), anyone can call `revive()` once it is overdue.
  */
 abstract contract ScheduledKeeper {
     error ScheduledKeeper__TooEarly(uint256 nextRunAt);
+    error ScheduledKeeper__OnlyNetwork();
     error ScheduledKeeper__NotOverdue(uint256 overdueAt);
     error ScheduledKeeper__OnlySelf();
     error ScheduledKeeper__Reentrant();
@@ -25,8 +29,9 @@ abstract contract ScheduledKeeper {
     /// @notice How many consecutive seconds `_scheduleNext` tries when a second is full.
     uint256 public constant CAPACITY_PROBES = 10;
     /// @notice Gas held back from `_work()` so booking the next tick always has enough. Measured on testnet:
-    ///         `scheduleCall` costs ~1.41M gas whatever gas limit it books, so `gasLimit` must exceed this.
-    uint256 public constant SCHEDULE_GAS_RESERVE = 1_500_000;
+    ///         `scheduleCall` costs ~1.41M gas whatever gas limit it books; the rest covers the capacity probes
+    ///         and bookkeeping. `gasLimit` must exceed this.
+    uint256 public constant SCHEDULE_GAS_RESERVE = 1_600_000;
     /// @notice How early `tick()` is accepted. `block.timestamp` is the start of Hedera's ~2 s block, so a
     ///         schedule that fires exactly at `nextRunAt` can see a timestamp a second or two before it.
     uint256 public constant TIMESTAMP_TOLERANCE = 5;
@@ -49,6 +54,7 @@ abstract contract ScheduledKeeper {
     event Revived(address indexed by);
     event Funded(address indexed from, uint256 amount);
     event Stopped(uint256 runs);
+    event RunCostEstimateSet(uint256 tinybars);
 
     constructor(uint256 interval_, uint256 gasLimit_, uint256 runCostEstimate_) {
         if (interval_ == 0 || gasLimit_ <= SCHEDULE_GAS_RESERVE) revert ScheduledKeeper__InvalidConfig();
@@ -57,9 +63,9 @@ abstract contract ScheduledKeeper {
         runCostEstimate = runCostEstimate_;
     }
 
-    /// @notice Called by the Schedule Service at `nextRunAt`. Anyone may call it late; calling early reverts
-    ///         (more than `TIMESTAMP_TOLERANCE` seconds early).
+    /// @notice Called by the Schedule Service at `nextRunAt`, and by nothing else.
     function tick() external {
+        if (msg.sender != address(this)) revert ScheduledKeeper__OnlyNetwork();
         if (_ticking) revert ScheduledKeeper__Reentrant();
         if (nextRunAt == 0 || block.timestamp + TIMESTAMP_TOLERANCE < nextRunAt) {
             revert ScheduledKeeper__TooEarly(nextRunAt);
@@ -141,6 +147,7 @@ abstract contract ScheduledKeeper {
 
     function _setRunCostEstimate(uint256 tinybars) internal {
         runCostEstimate = tinybars;
+        emit RunCostEstimateSet(tinybars);
     }
 
     /// @dev The job. Reverting is safe: the tick is still recorded and the next one booked.

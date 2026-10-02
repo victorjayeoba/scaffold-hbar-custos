@@ -57,6 +57,40 @@ contract SolvencyInvariantTest is CustosBase {
         }
     }
 
+    /// @notice No liquidation and no tick ever takes USDC out of the pool: a liquidated position's losses stop at
+    ///         its collateral, so there is never bad debt for LPs to absorb.
+    function invariant_noBadDebt() public view {
+        assertEq(handler.badDebtEvents(), 0);
+    }
+
+    /// @notice The fee reserve always covers the next tick while the pool has spare USDC to refuel it with.
+    function invariant_reserveCoversNextTick() public view {
+        assertEq(handler.starvedTicks(), 0);
+    }
+
+    /// @notice The running sums give the same traders' gain as adding up every position one by one.
+    function invariant_runningSumsMatchPositions() public view {
+        (uint256 price,,,,) = guard.read();
+        int256 sum;
+        for (uint256 i = 0; i < market.traderCount(); i++) {
+            address t = market.traders(i);
+            sum += market.pnl(t, price) - market.fundingOwed(t);
+        }
+        int256 floor = -int256(market.totalCollateral());
+        if (sum < floor) sum = floor;
+        // each position's PnL and funding round separately: at most 2 micro-USDC apart per position
+        assertApproxEqAbs(market.netTraderGain(price), sum, 2 * market.traderCount() + 2);
+    }
+
+    /// @notice `totalCollateral` is exactly the collateral of open positions.
+    function invariant_totalCollateralMatches() public view {
+        uint256 sum;
+        for (uint256 i = 0; i < market.traderCount(); i++) {
+            sum += market.positionOf(market.traders(i)).collateral;
+        }
+        assertEq(market.totalCollateral(), sum);
+    }
+
     /// @notice The keeper chain never breaks while the reserve and capacity hold.
     function invariant_keeperStaysScheduled() public view {
         if (handler.ticks() == 0) return;

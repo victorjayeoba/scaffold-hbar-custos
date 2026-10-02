@@ -211,7 +211,7 @@ contract PerpMarketTest is CustosBase {
         uint256 poolBefore = usdc.balanceOf(address(pool));
         vm.expectEmit(true, true, false, true, address(market));
         emit PerpMarket.Liquidated(alice, 0.1188e18, true, address(0), 0);
-        market.tick();
+        _tick();
 
         assertEq(market.positionOf(alice).size, 0);
         assertTrue(market.positionOf(bob).size != 0);
@@ -228,13 +228,13 @@ contract PerpMarketTest is CustosBase {
 
         vm.expectEmit(false, false, false, true, address(market));
         emit PerpMarket.SweepSkipped(PriceGuard.Status.Deviated);
-        market.tick();
+        _tick();
         assertTrue(market.positionOf(alice).size != 0);
         assertEq(market.nextRunAt(), block.timestamp + 300); // still rescheduled
     }
 
     function test_sweepPagesAndWraps() public {
-        for (uint256 i = 0; i < 25; i++) {
+        for (uint256 i = 0; i < 60; i++) {
             address t = address(uint160(0x1000 + i));
             _fund(t, 10e6);
             _open(t, true, 10e6, 2);
@@ -242,14 +242,14 @@ contract PerpMarketTest is CustosBase {
         market.revive();
         vm.warp(market.nextRunAt());
         vm.expectEmit(false, false, false, true, address(market));
-        emit PerpMarket.Swept(0, 20, 0);
-        market.tick();
-        assertEq(market.cursor(), 20);
+        emit PerpMarket.Swept(0, 50, 0);
+        _tick();
+        assertEq(market.cursor(), 50);
 
         vm.warp(market.nextRunAt());
         vm.expectEmit(false, false, false, true, address(market));
-        emit PerpMarket.Swept(20, 25, 0);
-        market.tick();
+        emit PerpMarket.Swept(50, 60, 0);
+        _tick();
         assertEq(market.cursor(), 0);
     }
 
@@ -260,7 +260,7 @@ contract PerpMarketTest is CustosBase {
         market.revive();
         vm.warp(market.nextRunAt());
         _setPrice(11_880_000);
-        market.tick();
+        _tick();
         assertEq(market.traderCount(), 0);
     }
 
@@ -274,7 +274,8 @@ contract PerpMarketTest is CustosBase {
         vm.warp(market.nextRunAt());
         _setPrice(10_000_000); // everyone underwater
 
-        market.tick{ gas: 2_300_000 }();
+        vm.prank(address(market));
+        market.tick{ gas: 2_400_000 }();
         uint256 left = market.traderCount();
         assertGt(left, 0); // not all fit in this tick
         assertLt(left, 20); // but some were liquidated
@@ -282,7 +283,7 @@ contract PerpMarketTest is CustosBase {
 
         vm.warp(market.nextRunAt());
         _setPrice(10_000_000);
-        market.tick();
+        _tick();
         assertEq(market.traderCount(), 0);
     }
 
@@ -316,7 +317,7 @@ contract PerpMarketTest is CustosBase {
         _open(alice, true, 100e6, 10);
         market.revive();
         vm.warp(market.nextRunAt());
-        market.tick();
+        _tick();
         assertGt(market.fundingIndex(), 0);
         assertEq(market.fundingUpdatedAt(), block.timestamp);
     }
@@ -353,12 +354,13 @@ contract PerpMarketTest is CustosBase {
         market.openWithHbar(true, 10, 0);
 
         PerpMarket noSwap = new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 1e8, address(0), address(0)
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 1e8, address(0), address(0), 1e6, 9_500
         );
         vm.deal(alice, 1e8);
         vm.prank(alice);
         vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
         noSwap.openWithHbar{ value: 1e8 }(true, 10, 0);
+        vm.prank(address(noSwap));
         vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
         noSwap.refuel();
     }
@@ -374,6 +376,7 @@ contract PerpMarketTest is CustosBase {
         // wants (48 - 5) runs = 43 HBAR ≈ 97.61 USDC, capped at 50 USDC per refuel
         vm.expectEmit(false, false, false, true, address(market));
         emit PerpMarket.Refueled(50e6, uint256(50e6) * 1e8 / 2_270_000, 5);
+        vm.prank(address(market));
         uint256 hbarOut = market.refuel();
 
         assertEq(poolBefore - usdc.balanceOf(address(pool)), 50e6);
@@ -385,12 +388,14 @@ contract PerpMarketTest is CustosBase {
     function test_refuelBuysOnlyWhatItNeeds() public {
         vm.deal(address(market), 11e8); // one run short of the line: wants 37 HBAR ≈ 83.99 USDC → capped at 50
         router.setRate(1_000_000); // 1 HBAR = 1 USDC: wants 37 USDC, under the cap
+        vm.prank(address(market));
         market.refuel();
         assertEq(market.runsLeft(), 48);
     }
 
     function test_refuelOnlyWhenLow() public {
         vm.expectRevert(abi.encodeWithSelector(PerpMarket.PerpMarket__ReserveNotLow.selector, 100));
+        vm.prank(address(market));
         market.refuel();
     }
 
@@ -398,15 +403,17 @@ contract PerpMarketTest is CustosBase {
         _open(alice, true, 100e6, 10); // pool must keep 2,000
         uint256 max = pool.maxWithdraw(lp);
         vm.prank(lp);
-        pool.withdraw(max, lp, lp);
+        pool.withdraw(max, lp);
         vm.deal(address(market), 1e8);
 
         uint256 free = pool.freeAssets();
         if (free == 0) {
             vm.expectRevert(PerpMarket.PerpMarket__NothingToSpend.selector);
-            market.refuel();
+            vm.prank(address(market));
+        market.refuel();
         } else {
-            market.refuel();
+            vm.prank(address(market));
+        market.refuel();
         }
         assertGe(pool.totalAssets(), pool.requiredLiquidity());
     }
@@ -422,7 +429,7 @@ contract PerpMarketTest is CustosBase {
         vm.warp(market.nextRunAt());
         vm.expectEmit(false, false, false, false, address(market));
         emit PerpMarket.Refueled(0, 0, 0);
-        market.tick();
+        _tick();
         assertGt(market.runsLeft(), 12);
         assertEq(market.nextRunAt(), block.timestamp + 300);
     }
@@ -434,7 +441,7 @@ contract PerpMarketTest is CustosBase {
         router.setRate(0); // SaucerSwap quote breaks: refuel reverts
         vm.warp(market.nextRunAt());
         _setPrice(11_880_000);
-        market.tick();
+        _tick();
 
         assertEq(market.positionOf(alice).size, 0); // liquidated anyway
         assertEq(market.nextRunAt(), block.timestamp + 300);
@@ -465,11 +472,11 @@ contract PerpMarketTest is CustosBase {
     function test_constructorRejectsZeroAddresses() public {
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector);
         new PerpMarket(
-            address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0)
+            address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 1e6, 9_500
         );
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector); // router without WHBAR
         new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(router), address(0)
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(router), address(0), 1e6, 9_500
         );
     }
 }

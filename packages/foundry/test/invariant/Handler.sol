@@ -3,6 +3,7 @@
 pragma solidity ^0.8.19;
 
 import { Test } from "forge-std/Test.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PerpMarket } from "../../contracts/PerpMarket.sol";
 import { LiquidityPool } from "../../contracts/LiquidityPool.sol";
 import { PriceGuard } from "../../contracts/PriceGuard.sol";
@@ -26,6 +27,11 @@ contract Handler is Test {
     bool public justSweptAtOkPrice;
     uint256 public ticks;
     uint256 public networkLiquidations;
+    /// @notice Times the pool's USDC went down during a liquidation or a tick (it should only ever go up).
+    uint256 public badDebtEvents;
+    /// @notice Ticks the network could not have run because the reserve couldn't pay for them, while the pool had
+    ///         enough free USDC for the keeper to refuel. Should stay zero.
+    uint256 public starvedTicks;
 
     constructor(
         PerpMarket market_,
@@ -47,6 +53,7 @@ contract Handler is Test {
             vm.startPrank(a);
             usdc.approve(address(market), type(uint256).max);
             usdc.approve(address(pool), type(uint256).max);
+            IERC20(pool_.shareToken()).approve(address(pool), type(uint256).max);
             vm.stopPrank();
         }
     }
@@ -63,6 +70,7 @@ contract Handler is Test {
         justSweptAtOkPrice = false;
         address a = _actor(seed);
         amount = bound(amount, 1e6, 5_000e6);
+        if (!_poolOpen()) return;
         usdc.mint(a, amount);
         vm.prank(a);
         pool.deposit(amount, a);
@@ -71,11 +79,12 @@ contract Handler is Test {
     function withdraw(uint256 seed, uint256 amount) external {
         justSweptAtOkPrice = false;
         address a = _actor(seed);
+        if (!_poolOpen()) return;
         uint256 max = pool.maxWithdraw(a);
         if (max == 0) return;
         amount = bound(amount, 1, max);
         vm.prank(a);
-        pool.withdraw(amount, a, a);
+        pool.withdraw(amount, a);
     }
 
     function open(uint256 seed, bool isLong, uint256 collateral, uint256 leverage) external {
@@ -126,25 +135,49 @@ contract Handler is Test {
         address a = _actor(seed);
         if (guard.status() != PriceGuard.Status.Ok) return;
         if (!market.isLiquidatable(a, guard.price())) return;
+        uint256 before = usdc.balanceOf(address(pool));
         market.liquidate(a);
+        if (usdc.balanceOf(address(pool)) < before) badDebtEvents++;
     }
 
-    /// @dev The keeper's reserve runs low and it refuels from the pool through SaucerSwap.
-    function refuel(uint256 runs) external {
+    /// @dev The keeper's reserve drops to a few runs; the next tick should refuel it from the pool.
+    function drainReserve(uint256 runs) external {
         justSweptAtOkPrice = false;
-        vm.deal(address(market), bound(runs, 0, 20) * market.runCostEstimate());
-        try market.refuel() { } catch { }
+        vm.deal(address(market), bound(runs, 1, 20) * market.runCostEstimate());
     }
 
+    /// @dev The network runs the booked tick and charges the reserve one run's cost for it, as Hedera does.
     function tick() external {
         if (market.nextRunAt() == 0) market.revive();
         if (market.nextRunAt() > block.timestamp) vm.warp(market.nextRunAt()); // time only moves forward
         _refreshFeeds();
-        uint256 before = market.traderCount();
+
+        uint256 cost = market.runCostEstimate();
+        uint256 reserve = address(market).balance;
+        if (reserve < cost) {
+            // Hedera couldn't execute this tick. That is only the keeper's fault if it could have refuelled.
+            if (pool.freeAssets() >= market.REFUEL_MAX_USDC()) starvedTicks++;
+            justSweptAtOkPrice = false;
+            return;
+        }
+        vm.deal(address(market), reserve - cost);
+
+        uint256 traders = market.traderCount();
+        uint256 poolBefore = usdc.balanceOf(address(pool));
+        uint256 reserveBefore = address(market).balance;
+        vm.prank(address(market));
         market.tick();
         ticks++;
-        networkLiquidations += before - market.traderCount();
+        networkLiquidations += traders - market.traderCount();
+        // A refuel legitimately moves pool USDC to the keeper; anything else leaving the pool is bad debt.
+        bool refuelled = address(market).balance > reserveBefore;
+        if (!refuelled && usdc.balanceOf(address(pool)) < poolBefore) badDebtEvents++;
         justSweptAtOkPrice = guard.status() == PriceGuard.Status.Ok;
+    }
+
+    /// @dev Deposits and withdrawals need an `Ok` price whenever positions are open.
+    function _poolOpen() internal view returns (bool) {
+        return market.traderCount() == 0 || guard.status() == PriceGuard.Status.Ok;
     }
 
     function _refreshFeeds() internal {
