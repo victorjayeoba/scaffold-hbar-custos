@@ -118,12 +118,12 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 | Gas limit per tick (testnet deploy) | 3,000,000 |
 | Gas price | 82 tinybar/gas (measured inside a scheduled run) |
 | **Held up front per run** | **2.46 ℏ**: the reserve must hold at least this or Hedera won't start the run |
-| Charged per run | Hedera charges at least 80% of the gas limit: **≥ 1.97 ℏ**. Measured on the previous deploy: a 2.5M-gas tick that liquidated a position used 1.61M gas and was charged **1.755 ℏ**. _(First tick of the final deploy: see §6, filled in when it runs.)_ |
+| **Charged per run** | **Gas used × gas price**, not the limit. First tick of the final deploy: 1,618,265 gas used of 3,000,000, charged **1.359 ℏ** at 84 tinybar/gas (swept 2 positions, accrued funding, booked the next tick). On the previous deploy a tick that liquidated a position used 1.61M gas and was charged 1.755 ℏ at ~109 tinybar/gas. |
 | Failed start (reserve too low) | 0.018 ℏ, and the chain stops until `fund()` + `revive()` |
-| Per day at a 30 min interval | 48 runs ≈ 95 ℏ charged |
-| Testnet reserve at deploy | 36 ℏ = 14 runs at 2.46 ℏ ≈ 7 h of ticks |
+| Per day at a 30 min interval | 48 runs × ~1.36 ℏ ≈ 65 ℏ charged |
+| Testnet reserve at deploy | 36 ℏ: `runsLeft()` says 14 (each counted at the full 2.46 ℏ hold); at ~1.36 ℏ actually charged it lasts ~25 runs, ~12 h |
 
-To run longer: fund more (`fund()` on the market, or send HBAR to it), lengthen the interval, or lower the gas limit (it must stay above 1.6M; each extra position checked costs about 20–30k gas).
+So the gas limit decides how much HBAR must sit in the reserve, and the work actually done decides what each run costs. To run longer: fund more (`fund()` on the market, or send HBAR to it), or lengthen the interval. Lowering the gas limit shrinks the hold but not the charge (it must stay above 1.6M, and each extra position checked costs about 20–30k gas).
 
 ## 6. Testnet deployment (final, 2026-10-02)
 
@@ -170,7 +170,7 @@ Proof transactions are listed in [`TESTNET.md`](TESTNET.md).
 ## 8. Honest limits
 
 - **Testnet refuels fail closed.** SaucerSwap testnet's USDC pool is ~22x off the oracle (§4.8), so the keeper is funded by hand on testnet. Self-refuel is proven by tests at sane prices.
-- **The keeper costs real HBAR.** About 2 ℏ per run, ~95 ℏ a day at a 30 min interval (§5). When the reserve can't cover the next run's gas hold, the chain stops until someone funds and revives it.
+- **The keeper costs real HBAR.** About 1.4 ℏ per run, ~65 ℏ a day at a 30 min interval (§5). When the reserve can't cover the next run's gas hold, the chain stops until someone funds and revives it.
 - **Push oracles lag.** Chainlink and Supra update on deviation or heartbeat, so the market trades on a price that can be minutes old; with 2 h staleness and a 5% deviation band, a 50x position can be hit by oracle lag. The 300 s minimum hold and the 0.1% fees blunt it; they don't remove it.
 - **Liquidation keeps the remainder.** A liquidated position's leftover equity (up to 1% of notional) goes to the pool, not back to the trader.
 - **The pool's value ignores the per-position gain cap and loss floor.** Exact until a position is past +100% or below zero equity; liquidation keeps positions away from the floor.
@@ -243,7 +243,7 @@ Deploy it, send it HBAR (`fund()`), call `revive()` once to book the first tick.
 ### Change the interval
 
 The interval is fixed at deploy (`immutable`): `KEEPER_INTERVAL=3600 yarn custos:deploy:testnet`. Things to weigh:
-- **Cost:** each run is charged ≥ 80% of the gas limit, so halving the interval doubles the HBAR spent (§5).
+- **Cost:** each run is charged for the gas it uses (~1.36 ℏ for a tick that books the next one and sweeps a small book), so halving the interval roughly doubles the HBAR spent (§5).
 - **Safety:** at 50x a ~2% move wipes a position. The sweep checks 50 positions per tick, so a slower interval means underwater positions wait longer and the pool takes the slack (manual liquidators can still act any time, for the 0.5% reward).
 - **Funding** accrues continuously; the interval only decides when it's booked.
 
