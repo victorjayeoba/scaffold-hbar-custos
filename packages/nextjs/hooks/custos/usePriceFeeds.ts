@@ -1,3 +1,4 @@
+import { POLL } from "~~/hooks/custos/poll";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
 
 /** Same limits as PriceGuard.sol, so the page and the contract agree on when trading stops. */
@@ -17,11 +18,13 @@ export const usePriceFeeds = () => {
   const { data: round } = useScaffoldReadContract({
     contractName: "ChainlinkHbarUsd",
     functionName: "latestRoundData",
+    ...POLL,
   });
   const { data: supraRaw } = useScaffoldReadContract({
     contractName: "SupraPushOracle",
     functionName: "getSvalue",
     args: [SUPRA_HBAR_USDT_PAIR],
+    ...POLL,
   });
 
   // Chainlink answers with 8 decimals and a timestamp in seconds.

@@ -1,13 +1,26 @@
+import { POLL } from "~~/hooks/custos/poll";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
 
 /** The keeper's schedule, read from PerpMarket (ScheduledKeeper) on Hedera testnet. */
 export const useKeeper = () => {
-  const { data: nextRunAt } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "nextRunAt" });
-  const { data: lastRunAt } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "lastRunAt" });
-  const { data: interval } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "interval" });
-  const { data: runCount } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "runCount" });
-  const { data: runsLeft } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "runsLeft" });
-  const { data: nextSchedule } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "nextSchedule" });
+  const { data: nextRunAt } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "nextRunAt",
+    ...POLL,
+  });
+  const { data: lastRunAt } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "lastRunAt",
+    ...POLL,
+  });
+  const { data: interval } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "interval", ...POLL });
+  const { data: runCount } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "runCount", ...POLL });
+  const { data: runsLeft } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "runsLeft", ...POLL });
+  const { data: nextSchedule } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "nextSchedule",
+    ...POLL,
+  });
 
   const loaded = nextRunAt !== undefined && interval !== undefined && runCount !== undefined;
   return {

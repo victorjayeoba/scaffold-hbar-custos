@@ -4,6 +4,8 @@ import { InstallCommand } from "~~/components/custos/InstallCommand";
 import { MetronomeStack } from "~~/components/custos/MetronomeStack";
 import { OracleReadout } from "~~/components/custos/OracleReadout";
 import { ScheduleRail } from "~~/components/custos/ScheduleRail";
+import { TestnetProof } from "~~/components/custos/TestnetProof";
+import { TESTNET_NOTES_URL } from "~~/utils/custos/testnet";
 
 const REPO_URL = "https://github.com/victorjayeoba/scaffold-hbar-custos";
 
@@ -49,6 +51,34 @@ const parts = [
   },
 ];
 
+// Every Hedera service and integration the template leans on, with what we measured on testnet.
+const underTheHood = [
+  {
+    name: "Schedule Service (HIP-1215)",
+    body: "Each run books the next with scheduleCall, so the market never waits on a bot. Booking costs about 1.41M gas (roughly 1.6 HBAR), paid from the contract's own reserve.",
+  },
+  {
+    name: "Token Service",
+    body: "Collateral is Circle's testnet USDC, an HTS token. The market and pool associate with it when they start, so traders can deposit straight away.",
+  },
+  {
+    name: "Chainlink",
+    body: "The HBAR/USD push feed prices every trade, every liquidation and every funding charge. It needs no API key and no update fee.",
+  },
+  {
+    name: "Supra",
+    body: "The HBAR/USDT push feed is the independent check. It quotes USDT and updates about hourly on testnet, so the limit is 5% and two hours.",
+  },
+  {
+    name: "Smart contracts",
+    body: "Five Solidity contracts on Hedera's EVM, with unit tests and fuzzed solvency invariants: the pool always covers what it owes.",
+  },
+  {
+    name: "Hedera timing",
+    body: "block.timestamp is the start of a ~2 second block, so a check that fires on time can look a second early. The keeper allows five seconds.",
+  },
+];
+
 const setupSteps = [
   "Create the project with the command above and pick a deployer account.",
   "Get testnet HBAR from the Hedera Portal faucet and testnet USDC from Circle's faucet.",
@@ -66,9 +96,12 @@ const Home: NextPage = () => {
               <h1 className="text-[clamp(2.75rem,6.5vw,5rem)] font-normal leading-[1.05] tracking-[-0.02em]">
                 Margin kept by the network.
               </h1>
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/85">
-                Custos is a Scaffold-HBAR template for margin trading on Hedera. Liquidations and funding run on
-                Hedera&apos;s own Schedule Service, so there is no keeper bot to host, fund or wake up.
+              <p className="mt-6 max-w-xl text-xl leading-relaxed text-white">
+                Open a leveraged HBAR position. If it falls under its margin, Hedera liquidates it on schedule. No
+                keeper bots, no servers.
+              </p>
+              <p className="mt-3 max-w-xl leading-relaxed text-white/70">
+                A Scaffold-HBAR template: contracts, app and docs for margin trading, in one command.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <a
@@ -95,6 +128,10 @@ const Home: NextPage = () => {
             <ScheduleRail />
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pt-16">
+        <TestnetProof />
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 py-16">
@@ -127,6 +164,25 @@ const Home: NextPage = () => {
             ))}
           </ol>
         </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pt-16">
+        <h2 className="text-3xl font-normal tracking-[-0.01em]">Under the hood</h2>
+        <p className="mt-3 mb-8 max-w-2xl text-base-content/70">
+          What Custos uses on Hedera, and what we measured running it on testnet.{" "}
+          <a href={TESTNET_NOTES_URL} target="_blank" rel="noreferrer" className="link">
+            Read the testnet notes
+          </a>
+          .
+        </p>
+        <dl className="m-0 grid gap-x-10 gap-y-0 md:grid-cols-2">
+          {underTheHood.map(item => (
+            <div key={item.name} className="border-t border-base-300 py-5">
+              <dt className="text-lg">{item.name}</dt>
+              <dd className="m-0 mt-1 text-base-content/75">{item.body}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 py-16">
