@@ -23,3 +23,6 @@ node_modules
 dist
 
 .env
+
+# hedera-harness run artifacts
+.harness/runs/
