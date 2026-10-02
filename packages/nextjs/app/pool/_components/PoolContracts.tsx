@@ -11,7 +11,7 @@ export const PoolContracts = ({ pool }: { pool: PoolState }) => {
 
   const rows = [
     {
-      label: "LiquidityPool (ERC-4626 vault)",
+      label: "LiquidityPool (ERC-4626-style vault)",
       id: pool.poolAddress,
       href: pool.poolAddress && `${explorer}/contract/${pool.poolAddress}`,
     },
@@ -20,17 +20,11 @@ export const PoolContracts = ({ pool }: { pool: PoolState }) => {
       id: pool.usdc.tokenId ?? pool.usdc.address,
       href: pool.usdc.address && `${explorer}/token/${pool.usdc.tokenId ?? pool.usdc.address}`,
     },
-    pool.shares.separateToken
-      ? {
-          label: `${pool.shares.symbol ?? "cUSDC-LP"}, the LP share (HTS token)`,
-          id: pool.shares.tokenId ?? pool.shares.address,
-          href: pool.shares.address && `${explorer}/token/${pool.shares.tokenId ?? pool.shares.address}`,
-        }
-      : {
-          label: `${pool.shares.symbol ?? "cUSDC-LP"}, the LP share (ERC-20 on the pool contract)`,
-          id: pool.poolAddress,
-          href: pool.poolAddress && `${explorer}/contract/${pool.poolAddress}`,
-        },
+    {
+      label: `${pool.shares.symbol ?? "cUSDC-LP"}, the LP share (HTS token)`,
+      id: pool.shares.tokenId ?? pool.shares.address,
+      href: pool.shares.address && `${explorer}/token/${pool.shares.tokenId ?? pool.shares.address}`,
+    },
   ];
 
   return (

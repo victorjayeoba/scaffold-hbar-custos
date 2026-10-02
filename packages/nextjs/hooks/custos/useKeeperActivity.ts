@@ -33,6 +33,7 @@ const KEEPER_EVENTS = new Set([
   "Funded",
   "Stopped",
   "TickScheduled",
+  "GasPriceSet",
 ]);
 
 type MirrorLog = { data: string; topics: string[]; index: number; timestamp: string };
@@ -79,7 +80,7 @@ const fetchPage = async (mirror: string, contractId: string, abi: MarketAbi, bef
   let next: string | undefined;
   let kept = logs;
   const oldest = logs.at(-1)?.timestamp;
-  // ponytail: a single transaction with 100+ logs ends paging here; a sweep emits ~25 at most (PAGE_SIZE = 20).
+  // ponytail: a single transaction with 100+ logs ends paging here; a tick emits ~55 at most (PAGE_SIZE = 50).
   if (logs.length === PAGE && oldest !== logs[0].timestamp) {
     next = oldest;
     kept = logs.filter(log => log.timestamp !== oldest);

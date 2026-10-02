@@ -17,8 +17,8 @@ import {
 } from "~~/utils/custos/perpMath";
 import { getBlockExplorerAddressLink } from "~~/utils/scaffold-hbar";
 
-/** Matches the keeper's sweep page, so the list shows what one network check looks at. */
-const SHOWN = 20;
+/** Matches the keeper's sweep page (PerpMarket.PAGE_SIZE), so the list shows what one network check looks at. */
+const SHOWN = 50;
 
 /** Every open position on the market, read live. Anyone can watch margin move here, no wallet needed. */
 export const MarketPositions = ({ market, me }: { market: TradeMarket; me?: Address }) => {

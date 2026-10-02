@@ -3,10 +3,19 @@
 import { KeeperActions } from "./KeeperActions";
 import { hbar } from "./format";
 import { useKeeperHealth } from "~~/hooks/custos/useKeeperHealth";
+import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
+
+const ONCE = { watch: false, query: { staleTime: Infinity, refetchInterval: false } } as const;
+const pct = (bps: bigint) => `${Number(bps) / 100}%`;
 
 /** The HBAR the contract keeps to pay for its own scheduled runs, and how long it lasts. */
 export const KeeperReserve = () => {
   const k = useKeeperHealth();
+  const { data: maxSwapDeviationBps } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "maxSwapDeviationBps",
+    ...ONCE,
+  });
   const loaded = k.runsLeft !== undefined;
   const runs = k.runsLeft ?? 0;
   const low = loaded && k.refuelBelow !== undefined && runs > 0 && runs < k.refuelBelow;
@@ -70,8 +79,8 @@ export const KeeperReserve = () => {
               <div>
                 <p className="m-0 font-medium">Running low: {runs} runs left.</p>
                 <p className="mt-1 mb-0 text-sm">
-                  Below {k.refuelBelow} runs, each check swaps spare pool USDC for HBAR on SaucerSwap. You can also top
-                  it up here.
+                  Below {k.refuelBelow} runs, each check tries to swap spare pool USDC for HBAR on SaucerSwap. On
+                  testnet that swap refuses (see below), so top it up here with <code>fund()</code>.
                 </p>
               </div>
             </div>
@@ -82,25 +91,29 @@ export const KeeperReserve = () => {
               {k.holdPerRun !== undefined ? `${hbar(k.holdPerRun)} HBAR` : "…"}
               {k.gasLimit !== undefined && k.gasPrice !== undefined && (
                 <span className="block text-xs text-base-content/55">
-                  {Number(k.gasLimit).toLocaleString("en-US")} gas × {Number(k.gasPrice / 10n ** 10n)} tinybar
+                  {Number(k.gasLimit).toLocaleString("en-US")} gas × {Number(k.gasPrice)} tinybar, runCostEstimate()
                 </span>
               )}
             </Row>
-            <Row label="Average cost per run">
-              {k.runCost !== undefined ? `${hbar(k.runCost)} HBAR` : "…"}
-              <span className="block text-xs text-base-content/55">runCostEstimate, set from testnet runs</span>
+            <Row label="Gas price">
+              {k.gasPrice !== undefined ? `${Number(k.gasPrice)} tinybar per gas` : "…"}
+              <span className="block text-xs text-base-content/55">
+                set at deploy, then recorded by every network run
+              </span>
             </Row>
             <Row label="Refuels itself">
               {k.refuelBelow !== undefined ? `Below ${k.refuelBelow} runs` : "…"}
-              <span className="block text-xs text-base-content/55">pool USDC → HBAR on SaucerSwap</span>
+              <span className="block text-xs text-base-content/55">
+                pool USDC → HBAR on SaucerSwap
+                {maxSwapDeviationBps !== undefined && `, within ${pct(maxSwapDeviationBps)} of the oracle`}
+              </span>
             </Row>
           </dl>
-          {loaded && k.contractRunsLeft !== undefined && k.contractRunsLeft !== runs && Number.isFinite(runs) && (
-            <p className="mt-4 mb-0 text-xs text-base-content/60">
-              The contract&apos;s <code>runsLeft()</code> says {k.contractRunsLeft}. It divides by the average cost and
-              doesn&apos;t count the gas Hedera holds up front, so this page counts runs that can actually start.
-            </p>
-          )}
+          <p className="mt-4 mb-0 text-xs text-base-content/60">
+            On testnet the refuel fails closed: SaucerSwap&apos;s testnet HBAR/USDC pool is far from the real price, so
+            the swap would fill outside the oracle band and the contract refuses it. The reserve is topped up with{" "}
+            <code>fund()</code> instead. Where SaucerSwap tracks the market price, the same swap goes through.
+          </p>
         </div>
 
         <KeeperActions />

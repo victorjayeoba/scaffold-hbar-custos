@@ -1,4 +1,4 @@
-import { useBalance, useGasPrice } from "wagmi";
+import { useBalance } from "wagmi";
 import { POLL } from "~~/hooks/custos/poll";
 import { useKeeper } from "~~/hooks/custos/useKeeper";
 import { useNow } from "~~/hooks/custos/useNow";
@@ -13,25 +13,33 @@ export type KeeperState = "loading" | "scheduled" | "due" | "late" | "overdue" |
 
 /**
  * Everything the keeper page needs to judge the chain of scheduled runs: the schedule, the HBAR fee reserve,
- * and whether the reserve can actually pay for the next run.
+ * and whether the reserve can pay for the next run.
  *
- * Hedera must be able to charge a scheduled call's full gas limit up front (gasLimit × gas price), or the call fails
- * with INSUFFICIENT_PAYER_BALANCE and the chain breaks. The contract's own `runsLeft()` divides by the average cost
- * instead, so it can still say "3" when no run can start. `runsLeft` here counts runs that can actually start.
+ * Hedera only starts a scheduled call if the payer holds its full gas limit at the gas price (gasLimit × gasPrice),
+ * or the call fails with INSUFFICIENT_PAYER_BALANCE and the chain breaks. The contract accounts for that itself:
+ * `runCostEstimate()` is that hold, `runsLeft()` counts whole holds and `canPayNextRun()` checks the next one.
  */
 export const useKeeperHealth = () => {
   const now = useNow();
   const keeper = useKeeper();
   const { targetNetwork } = useTargetNetwork();
   const { data: market } = useDeployedContractInfo({ contractName: "PerpMarket" });
-  const refetch = { refetchInterval: POLL.query.refetchInterval };
 
-  const { data: balance } = useBalance({ address: market?.address, chainId: targetNetwork.id, query: refetch });
-  const { data: gasPrice } = useGasPrice({ chainId: targetNetwork.id, query: refetch });
+  const { data: balance } = useBalance({
+    address: market?.address,
+    chainId: targetNetwork.id,
+    query: { refetchInterval: POLL.query.refetchInterval },
+  });
   const { data: gasLimit } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "gasLimit", ...POLL });
-  const { data: runCost } = useScaffoldReadContract({
+  const { data: gasPrice } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "gasPrice", ...POLL });
+  const { data: holdPerRun } = useScaffoldReadContract({
     contractName: "PerpMarket",
     functionName: "runCostEstimate",
+    ...POLL,
+  });
+  const { data: canPayNextRun } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "canPayNextRun",
     ...POLL,
   });
   const { data: refuelBelow } = useScaffoldReadContract({
@@ -47,17 +55,12 @@ export const useKeeperHealth = () => {
 
   // All HBAR amounts below are in tinybars.
   const reserve = balance ? balance.value / WEIBAR_PER_TINYBAR : undefined;
-  const holdPerRun =
-    gasLimit !== undefined && gasPrice !== undefined ? (gasLimit * gasPrice) / WEIBAR_PER_TINYBAR : undefined;
-  let runsLeft: number | undefined;
-  if (reserve !== undefined && holdPerRun !== undefined && runCost !== undefined) {
-    if (reserve < holdPerRun) runsLeft = 0;
-    else runsLeft = runCost === 0n ? Infinity : Number((reserve - holdPerRun) / runCost) + 1;
-  }
-  /** Tinybars to add so `runs` runs in a row can start. */
+  // With no gas price yet the contract returns uint256 max: no run is counted as costing anything.
+  const runsLeft = holdPerRun === 0n ? Infinity : keeper.runsLeft;
+  /** Tinybars to add so the contract's `runsLeft()` reaches `runs`: it counts whole holds, balance / hold. */
   const topUpFor = (runs: number) => {
-    if (reserve === undefined || holdPerRun === undefined || runCost === undefined) return undefined;
-    const missing = holdPerRun + runCost * BigInt(Math.max(runs - 1, 0)) - reserve;
+    if (reserve === undefined || holdPerRun === undefined) return undefined;
+    const missing = holdPerRun * BigInt(runs) - reserve;
     return missing > 0n ? missing : 0n;
   };
 
@@ -80,13 +83,13 @@ export const useKeeperHealth = () => {
     /** When `revive()` opens (unix seconds); undefined while stopped or loading. */
     reviveOpensAt: nextRunAt && interval ? nextRunAt + 2 * interval : undefined,
     reserve,
+    /** `runCostEstimate()`: tinybars Hedera must be able to hold before a run starts, gasLimit × gasPrice. */
     holdPerRun,
-    runCost,
     gasLimit,
+    /** Tinybars per gas, as the last network run recorded it (`gasPrice()`). */
     gasPrice,
     runsLeft,
-    contractRunsLeft: keeper.runsLeft,
-    canPayNextRun: runsLeft === undefined ? undefined : runsLeft > 0,
+    canPayNextRun,
     refuelBelow: refuelBelow !== undefined ? Number(refuelBelow) : undefined,
     refuelTarget: refuelTarget !== undefined ? Number(refuelTarget) : undefined,
     topUpFor,

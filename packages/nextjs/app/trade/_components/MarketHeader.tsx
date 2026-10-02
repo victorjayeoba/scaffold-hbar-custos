@@ -45,9 +45,8 @@ export const explainGuard = (market: TradeMarket, now?: number): Verdict | undef
     };
   }
 
-  const tail = `New positions can't open and the network skips liquidations until it clears. You can still close a position (${
-    market.worseFeedClose ? "at whichever of the two prices is worse for you" : "at Chainlink's last price"
-  }) or add collateral.`;
+  const tail =
+    "New positions can't open and the network skips liquidations until it clears. You can still close a position (at whichever of the two prices is worse for you) or add collateral.";
 
   if (g.status === "deviated") {
     return {
@@ -71,9 +70,7 @@ export const explainGuard = (market: TradeMarket, now?: number): Verdict | undef
   return {
     tone: "bad",
     title: "Close-only: a price is out of date",
-    body: `${why}${limitAge ? ` (the limit is ${fmtDuration(limitAge)})` : ""}. ${tail}${
-      g.price === 0n && !market.worseFeedClose ? " With no Chainlink price at all, closing waits too." : ""
-    }`,
+    body: `${why}${limitAge ? ` (the limit is ${fmtDuration(limitAge)})` : ""}. ${tail}`,
   };
 };
 

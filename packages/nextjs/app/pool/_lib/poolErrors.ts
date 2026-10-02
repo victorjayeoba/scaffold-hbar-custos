@@ -6,7 +6,6 @@ import {
   InsufficientFundsError,
   UserRejectedRequestError,
   decodeErrorResult,
-  parseAbi,
 } from "viem";
 import { USDC_DECIMALS, fmt } from "~~/app/pool/_lib/format";
 import deployedContracts from "~~/contracts/deployedContracts";
@@ -25,25 +24,11 @@ export type ErrorContext = {
 
 type Decoded = { name: string; args: readonly unknown[] };
 
-// Errors of the HTS-share LiquidityPool (contracts branch b059795). Listed here so they decode before
-// deployedContracts.ts is regenerated; harmless duplicates afterwards.
-const htsPoolErrors = parseAbi([
-  "error LiquidityPool__ShareTokenExists()",
-  "error LiquidityPool__NoShareToken()",
-  "error LiquidityPool__HtsFailed(int64 responseCode)",
-  "error LiquidityPool__NoPrice()",
-  "error LiquidityPool__ZeroAmount()",
-  "error LiquidityPool__TooFewShares(uint256 shares)",
-  "error LiquidityPool__ExceedsMax(uint256 max)",
-  "error LiquidityPool__RefundFailed()",
-]);
-
 // Every error any Custos contract can raise, so a revert bubbling up from a nested call still decodes.
 const allErrors = [
   ...Object.values(deployedContracts as Record<number, Record<string, { abi: Abi }>>)
     .flatMap(chain => Object.values(chain))
     .flatMap(c => c.abi.filter(item => item.type === "error")),
-  ...htsPoolErrors,
 ] as Abi;
 
 // Hedera response codes an HTS call can return inside LiquidityPool__HtsFailed (values from @hiero-ledger/sdk Status).
@@ -84,7 +69,7 @@ const FREE_ASSETS_WHY =
   "Withdrawals stop at the pool's free USDC: the pool keeps twice the open interest so it can always pay winning traders. More frees up as positions close.";
 
 const messages = (ctx: ErrorContext): Record<string, (args: readonly unknown[]) => string> => {
-  const shares = (v: unknown) => `${fmt(v as bigint, ctx.shareDecimals ?? 12, 4)} ${ctx.shareSymbol ?? "cUSDC-LP"}`;
+  const shares = (v: unknown) => `${fmt(v as bigint, ctx.shareDecimals ?? 6, 4)} ${ctx.shareSymbol ?? "cUSDC-LP"}`;
   return {
     // LiquidityPool
     LiquidityPool__ExceedsFreeAssets: ([free]) => `The pool has only ${usdc(free)} free right now. ${FREE_ASSETS_WHY}`,
@@ -104,24 +89,6 @@ const messages = (ctx: ErrorContext): Record<string, (args: readonly unknown[]) 
     LiquidityPool__HtsFailed: ([rc]) =>
       htsCodes[Number(rc)] ?? `Hedera's token service refused the share transfer (response code ${rc}).`,
     LiquidityPool__RefundFailed: () => "The pool couldn't refund the unused HBAR of the token-creation fee.",
-    // ERC-4626 limits
-    ERC4626ExceededMaxWithdraw: ([, assets, max]) =>
-      `You asked for ${usdc(assets)} but can withdraw at most ${usdc(max)} right now. ${FREE_ASSETS_WHY}`,
-    ERC4626ExceededMaxRedeem: ([, wanted, max]) =>
-      `You asked to redeem ${shares(wanted)} but can redeem at most ${shares(max)} right now. ${FREE_ASSETS_WHY}`,
-    ERC4626ExceededMaxDeposit: ([, assets, max]) =>
-      `The pool takes at most ${usdc(max)} in one deposit right now; you asked to deposit ${usdc(assets)}.`,
-    ERC4626ExceededMaxMint: ([, wanted, max]) =>
-      `The pool can mint at most ${shares(max)} right now; you asked for ${shares(wanted)}.`,
-    // ERC-20 (the share token)
-    ERC20InsufficientBalance: ([, balance, needed]) =>
-      `You hold ${shares(balance)}, and this needs ${shares(needed)}. Lower the amount.`,
-    ERC20InsufficientAllowance: ([, allowance, needed]) =>
-      `The pool is approved for ${shares(allowance)} of your shares but needs ${shares(needed)}. Approve the pool again.`,
-    ERC20InvalidReceiver: () => "The receiving address isn't valid.",
-    ERC20InvalidSender: () => "The sending address isn't valid.",
-    ERC20InvalidApprover: () => "The approving address isn't valid.",
-    ERC20InvalidSpender: () => "The address being approved isn't valid.",
     // Token transfers through Hedera's token service
     SafeERC20FailedOperation: () =>
       "The USDC transfer was refused by Hedera's token service. Check that your account is associated with USDC, holds enough of it, and has approved the pool for this amount.",

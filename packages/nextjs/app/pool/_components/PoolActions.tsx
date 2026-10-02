@@ -257,7 +257,7 @@ const DepositForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
           <span className="text-base-content/70">You get about</span>
           <span className="tabular-nums">
             {amount && preview !== undefined && debounced === amount
-              ? `${fmt(preview, shares.decimals ?? 12, 4)} ${symbol}`
+              ? `${fmt(preview, shares.decimals ?? 6, 4)} ${symbol}`
               : "—"}
           </span>
         </div>
@@ -298,7 +298,7 @@ type Unit = "usdc" | "shares";
 const WithdrawForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
   const id = useId();
   const { usdc, shares, me } = pool;
-  const shareDecimals = shares.decimals ?? 12;
+  const shareDecimals = shares.decimals ?? 6;
   const symbol = shares.symbol ?? "cUSDC-LP";
   const [unit, setUnit] = useState<Unit>("usdc");
   const [text, setText] = useState("");
@@ -346,17 +346,13 @@ const WithdrawForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
 
   const steps: Step[] = [
     ...associateStep(usdc, "assoc-usdc", "Associate your account with USDC to receive it"),
-    ...(shares.needsExitApproval
-      ? [
-          {
-            key: "approve-shares",
-            label: `Let the pool take your ${symbol}`,
-            done: sharesNeeded !== undefined && shares.allowance !== undefined && shares.allowance >= sharesNeeded,
-            action: `Approve ${symbol}`,
-            run: () => shares.approve(approveFor(sharesNeeded!)),
-          },
-        ]
-      : []),
+    {
+      key: "approve-shares",
+      label: `Let the pool take your ${symbol}`,
+      done: sharesNeeded !== undefined && shares.allowance !== undefined && shares.allowance >= sharesNeeded,
+      action: `Approve ${symbol}`,
+      run: () => shares.approve(approveFor(sharesNeeded!)),
+    },
     {
       key: "withdraw",
       label: "Withdraw",

@@ -8,7 +8,7 @@ import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaff
 /**
  * Everything the Pool page reads, in one place.
  *
- * - The pool (ERC-4626): total assets, free assets, share price, and the connected LP's withdraw limits.
+ * - The pool (ERC-4626-style, HTS shares): total assets, free assets, share price, and the connected LP's limits.
  * - The market: open interest the pool backs and the liquidity it requires (PerpMarket keeps 2× open notional).
  * - The two tokens: USDC (the pool's `asset()`, an HTS token) and the LP share token (see usePoolShares).
  */
@@ -43,8 +43,7 @@ export const usePool = (owner?: Address) => {
 
   const shares = usePoolShares(owner);
   const usdc = useHtsToken({ token: asset, owner, spender: poolInfo?.address });
-  // USDC the pool holds. Equal to totalAssets on the ERC-4626 pool; on the HTS-share pool totalAssets also nets
-  // traders' open gains, so the cash balance is read separately.
+  // USDC the pool holds. totalAssets also nets traders' open gains, so the cash balance is read separately.
   const { balance: usdcHeld } = useHtsToken({
     token: asset,
     owner: poolInfo?.address,
@@ -52,7 +51,7 @@ export const usePool = (owner?: Address) => {
     checkAssociation: false,
   });
 
-  // One whole share, in share units (12 decimals today: 6 for USDC plus the pool's 6-decimal virtual offset).
+  // One whole share, in share units (the HTS share token has 6 decimals, like USDC).
   const oneShare = shares.decimals !== undefined ? 10n ** BigInt(shares.decimals) : undefined;
   const { data: sharePrice } = useScaffoldReadContract({
     contractName: "LiquidityPool",
@@ -83,14 +82,10 @@ export const usePool = (owner?: Address) => {
   const openInterest =
     longNotional !== undefined && shortNotional !== undefined ? longNotional + shortNotional : undefined;
 
-  // The HTS-share pool refuses deposits and withdrawals without an Ok price while positions are open
-  // (LiquidityPool__NoPrice). The ERC-4626 pool has no such pause.
+  // The pool refuses deposits and withdrawals without an Ok price while positions are open (LiquidityPool__NoPrice).
   const { status: priceStatus } = usePriceFeeds();
   const paused =
-    shares.separateToken &&
-    (priceStatus === "stale" || priceStatus === "deviated") &&
-    openInterest !== undefined &&
-    openInterest > 0n;
+    (priceStatus === "stale" || priceStatus === "deviated") && openInterest !== undefined && openInterest > 0n;
 
   const refetch = async () => {
     await Promise.all([

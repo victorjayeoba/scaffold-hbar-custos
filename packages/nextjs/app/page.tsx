@@ -55,7 +55,7 @@ const parts = [
 const underTheHood = [
   {
     name: "Schedule Service (HIP-1215)",
-    body: "Each run books the next with scheduleCall, so the market never waits on a bot. Booking costs about 1.41M gas (roughly 1.6 HBAR), paid from the contract's own reserve.",
+    body: "Each run books the next with scheduleCall, so the market never waits on a bot. Booking costs about 1.41M gas. On testnet a whole run (funding, sweep and booking) used 1.62M gas and cost 1.36 HBAR, paid from the contract's own reserve.",
   },
   {
     name: "Token Service",

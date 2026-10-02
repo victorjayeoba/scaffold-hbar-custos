@@ -110,45 +110,6 @@ const HEDERA_CODES: [RegExp, string][] = [
   ],
 ];
 
-/**
- * PerpMarket functions and errors from the next contract version (backend `contracts` branch, b059795), not yet in
- * deployedContracts.ts. Calls and reads that use them are gated on `marketHasFunction`, so on today's market they
- * never run; after the redeploy and ABI regen these duplicate the generated entries and nothing else changes.
- */
-export const NEXT_MARKET_ABI = [
-  {
-    type: "function",
-    name: "closeToHbar",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "minHbarOut", type: "uint256" }],
-    outputs: [{ name: "hbarOut", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "quoteUsdcToHbar",
-    stateMutability: "view",
-    inputs: [{ name: "usdcAmount", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "closePrice",
-    stateMutability: "view",
-    inputs: [{ name: "trader", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "minCollateral",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  { type: "error", name: "PerpMarket__BelowMinCollateral", inputs: [{ name: "minCollateral", type: "uint256" }] },
-  { type: "error", name: "PerpMarket__InvalidConfig", inputs: [] },
-  { type: "error", name: "PerpMarket__OnlyKeeper", inputs: [] },
-] as const;
-
 let errorAbiCache: { chainId: number; abi: AbiError[] } | undefined;
 
 /** Every custom error declared by any contract the app knows on this chain, deduplicated by signature. */
@@ -157,7 +118,7 @@ const allErrors = (chainId: number): AbiError[] => {
   const seen = new Set<string>();
   const abi: AbiError[] = [];
   const onChain = (contracts as Record<number, Record<string, { abi: Abi }>> | undefined)?.[chainId] ?? {};
-  for (const contractAbi of [...Object.values(onChain).map(c => c.abi), NEXT_MARKET_ABI as Abi]) {
+  for (const contractAbi of Object.values(onChain).map(c => c.abi)) {
     for (const item of contractAbi) {
       if (item.type !== "error") continue;
       const key = `${item.name}(${item.inputs.map(i => i.type).join(",")})`;
@@ -247,19 +208,11 @@ const FALLBACK_GAS: Record<MarketCall["functionName"], bigint> = {
   closeToHbar: 3_000_000n,
 };
 
-/** True when the deployed PerpMarket has this function (for features the backend is still adding). */
-export const marketHasFunction = (chainId: number, name: string) => {
-  const market = (contracts as Record<number, Record<string, { abi: Abi }>> | undefined)?.[chainId]?.PerpMarket;
-  return !!market?.abi.some(item => item.type === "function" && item.name === name);
-};
-
 /**
  * Sends one PerpMarket transaction the careful way:
  * 1. simulate it with every known error ABI, so a revert comes back as a plain sentence before the wallet opens
  * 2. estimate gas (+30%), falling back to known-good limits
  * 3. send through the scaffold transactor (toasts with a HashScan link), then refresh every read on the page
- * It sends with the generated PerpMarket ABI plus NEXT_MARKET_ABI, so calls the deployed ABI doesn't type yet
- * (closeToHbar) go through the same path. Callers gate those on `marketHasFunction`.
  */
 export const useTradeAction = () => {
   const { targetNetwork } = useTargetNetwork();
@@ -294,7 +247,7 @@ export const useTradeAction = () => {
       setPending(call.functionName);
       try {
         // The PerpMarket ABI plus every other error we know (PriceGuard's bubble up through `open`).
-        const abi = [...(market.abi as Abi), ...(NEXT_MARKET_ABI as Abi), ...allErrors(chainId)] as Abi;
+        const abi = [...(market.abi as Abi), ...allErrors(chainId)] as Abi;
         const request = {
           address: market.address,
           abi,

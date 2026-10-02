@@ -24,9 +24,10 @@ export const TestnetProof = () => {
               href={row.href}
               target="_blank"
               rel="noreferrer"
+              title={row.id}
               className="link inline-flex items-center gap-1 font-mono text-sm text-primary"
             >
-              {row.id}
+              {row.id.length > 24 ? `${row.id.slice(0, 8)}…${row.id.slice(-6)}` : row.id}
               <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden />
             </a>
           </li>

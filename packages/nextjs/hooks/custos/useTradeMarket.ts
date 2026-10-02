@@ -2,8 +2,7 @@ import { useMemo } from "react";
 import { erc20Abi, zeroAddress } from "viem";
 import { useReadContract } from "wagmi";
 import { POLL } from "~~/hooks/custos/poll";
-import { NEXT_MARKET_ABI, marketHasFunction } from "~~/hooks/custos/useTradeAction";
-import { useDeployedContractInfo, useScaffoldReadContract, useTargetNetwork } from "~~/hooks/scaffold-hbar";
+import { useScaffoldReadContract, useTargetNetwork } from "~~/hooks/scaffold-hbar";
 import { CONTRACT_DEFAULTS, MarketParams, fundingRatePerHour } from "~~/utils/custos/perpMath";
 
 /** Constants never change for a deployed contract: read once. */
@@ -98,15 +97,10 @@ export const useTradeMarket = () => {
     query: { enabled: !!usdc && !!pool, ...POLL.query },
   });
 
-  // Next contract version: a minimum collateral, closes at the worse feed, and closeToHbar. Gated on the ABI.
-  const { data: perp } = useDeployedContractInfo({ contractName: "PerpMarket" });
-  const hasMinCollateral = marketHasFunction(targetNetwork.id, "minCollateral");
-  const { data: minCollateral } = useReadContract({
-    chainId: targetNetwork.id,
-    address: perp?.address,
-    abi: NEXT_MARKET_ABI,
+  const { data: minCollateral } = useScaffoldReadContract({
+    contractName: "PerpMarket",
     functionName: "minCollateral",
-    query: { enabled: !!perp && hasMinCollateral, staleTime: Infinity },
+    ...ONCE,
   });
 
   const params: MarketParams | undefined = useMemo(
@@ -162,13 +156,10 @@ export const useTradeMarket = () => {
     /** False when the market was deployed without SaucerSwap: `openWithHbar` reverts `PerpMarket__SwapDisabled`. */
     swapEnabled: router === undefined ? undefined : router !== zeroAddress,
     poolBalance,
-    /** The market's minimum collateral (USDC), or undefined on a market without the floor. */
-    minCollateral: hasMinCollateral ? minCollateral : undefined,
-    /** The market settles a close at the worse of the two feeds when the guard isn't Ok (`closePrice`). */
-    worseFeedClose: marketHasFunction(targetNetwork.id, "closePrice"),
-    /** The market can pay a close out in HBAR (`closeToHbar`). */
-    canCloseToHbar:
-      marketHasFunction(targetNetwork.id, "closeToHbar") && router !== undefined && router !== zeroAddress,
+    /** The market's minimum collateral (USDC). */
+    minCollateral,
+    /** The market can pay a close out in HBAR (`closeToHbar`): needs SaucerSwap. */
+    canCloseToHbar: router !== undefined && router !== zeroAddress,
     longNotional,
     shortNotional,
     openInterest,

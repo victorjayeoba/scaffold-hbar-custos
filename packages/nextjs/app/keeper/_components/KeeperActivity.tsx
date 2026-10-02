@@ -121,6 +121,8 @@ const describe = (event: MarketEvent, hashscan: string): React.ReactNode => {
           <Address address={event.args.from} hashscan={hashscan} />
         </>
       );
+    case "GasPriceSet":
+      return <>Gas price recorded: {Number(event.args.tinybarsPerGas)} tinybar per gas</>;
     case "Stopped":
       return <>The chain stopped after {Number(event.args.runs)} runs</>;
     case "Ticked":
@@ -141,6 +143,7 @@ const titleOf = (entry: KeeperEntry) => {
   if (names.has("Liquidated")) return "Liquidation";
   if (names.has("Refueled")) return "Reserve refuelled";
   if (names.has("Funded")) return "Reserve topped up";
+  if (names.has("GasPriceSet")) return "Gas price updated";
   return "Keeper activity";
 };
 

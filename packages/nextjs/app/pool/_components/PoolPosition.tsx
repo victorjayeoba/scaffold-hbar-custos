@@ -54,7 +54,7 @@ export const PoolPosition = ({
             <span className="ml-2 text-base text-base-content/60">USDC</span>
           </div>
           <p className="mt-1 mb-0 text-sm text-base-content/70 tabular-nums">
-            {fmt(shares.balance, shares.decimals ?? 12, 4)} {symbol}
+            {fmt(shares.balance, shares.decimals ?? 6, 4)} {symbol}
             {pct(shares.balance, shares.totalSupply, 2) !== undefined &&
               ` · ${pct(shares.balance, shares.totalSupply, 2)}% of the pool`}
           </p>
@@ -67,7 +67,7 @@ export const PoolPosition = ({
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 py-3">
               <dt>Can redeem now</dt>
               <dd className="m-0 tabular-nums">
-                {fmt(me.maxRedeem, shares.decimals ?? 12, 4)} {symbol}
+                {fmt(me.maxRedeem, shares.decimals ?? 6, 4)} {symbol}
               </dd>
             </div>
           </dl>
@@ -90,12 +90,8 @@ export const PoolPosition = ({
           </dd>
           <dt className="text-base-content/70">USDC token</dt>
           <dd className="m-0 text-right">{associationText[usdc.association]}</dd>
-          {shares.separateToken && (
-            <>
-              <dt className="text-base-content/70">Share token</dt>
-              <dd className="m-0 text-right">{associationText[shares.association]}</dd>
-            </>
-          )}
+          <dt className="text-base-content/70">Share token</dt>
+          <dd className="m-0 text-right">{associationText[shares.association]}</dd>
         </dl>
       )}
     </div>

@@ -5,14 +5,14 @@ import Link from "next/link";
 import { fmtBps, fmtDuration, fmtHbar, fmtPrice, fmtSignedUsdc, fmtSize, fmtUsdc, parseAmount } from "../_lib/format";
 import { Skeleton } from "./MarketHeader";
 import { Address } from "viem";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount } from "wagmi";
 import { POLL } from "~~/hooks/custos/poll";
 import type { HtsToken } from "~~/hooks/custos/useHtsToken";
 import { countdown } from "~~/hooks/custos/useNow";
-import { NEXT_MARKET_ABI, humanizeTradeError, useTradeAction } from "~~/hooks/custos/useTradeAction";
+import { humanizeTradeError, useTradeAction } from "~~/hooks/custos/useTradeAction";
 import type { TradeMarket } from "~~/hooks/custos/useTradeMarket";
 import { useTradePosition } from "~~/hooks/custos/useTradePosition";
-import { useDeployedContractInfo, useTargetNetwork } from "~~/hooks/scaffold-hbar";
+import { useScaffoldReadContract, useTargetNetwork } from "~~/hooks/scaffold-hbar";
 import {
   CONTRACT_DEFAULTS,
   closeableAt,
@@ -32,7 +32,7 @@ import {
  */
 const HOLD_TOLERANCE_SECONDS = 3;
 
-/** What the trader can be paid in when closing. HBAR needs a market with `closeToHbar`. */
+/** What the trader can be paid in when closing. HBAR goes through `closeToHbar` (SaucerSwap). */
 type Payout = "USDC" | "HBAR";
 /** Slippage accepted on the USDC → HBAR swap of a close. */
 const CLOSE_SLIPPAGE_BPS = 100n;
@@ -126,7 +126,6 @@ const OpenPosition = ({
 }) => {
   const { targetNetwork } = useTargetNetwork();
   const { address: trader } = useAccount();
-  const { data: perp } = useDeployedContractInfo({ contractName: "PerpMarket" });
   const action = useTradeAction();
   const p = pos.position!;
   const params = market.params ?? CONTRACT_DEFAULTS;
@@ -135,16 +134,14 @@ const OpenPosition = ({
   const owed = pos.fundingOwed ?? 0n;
   const isLong = p.size > 0n;
 
-  // The price a close settles at: Chainlink when prices are Ok; on markets with `closePrice`, the worse feed otherwise.
-  const { data: contractClosePrice } = useReadContract({
-    chainId: targetNetwork.id,
-    address: perp?.address,
-    abi: NEXT_MARKET_ABI,
+  // The price a close settles at: Chainlink when prices are Ok, otherwise whichever feed is worse for the trader.
+  const { data: contractClosePrice } = useScaffoldReadContract({
+    contractName: "PerpMarket",
     functionName: "closePrice",
-    args: [trader!],
-    query: { enabled: !!perp && !!trader && market.worseFeedClose, ...POLL.query },
+    args: [trader],
+    ...POLL,
   });
-  const closePx = market.worseFeedClose ? (contractClosePrice ?? mark) : mark;
+  const closePx = contractClosePrice ?? mark;
   const close = previewClose(p, closePx, owed, params);
   const mm = maintenanceMargin(p.entryNotional, params);
   // The contract's own number (at its current funding); perpMath gives the same if the read lags.
@@ -167,13 +164,12 @@ const OpenPosition = ({
   const [payout, setPayout] = useState<Payout>("USDC");
   const toHbar = payout === "HBAR" && market.canCloseToHbar;
   // HBAR payout: SaucerSwap quote for the expected USDC payout, less slippage, as `minHbarOut`.
-  const { data: hbarQuote } = useReadContract({
-    chainId: targetNetwork.id,
-    address: perp?.address,
-    abi: NEXT_MARKET_ABI,
+  const { data: hbarQuote } = useScaffoldReadContract({
+    contractName: "PerpMarket",
     functionName: "quoteUsdcToHbar",
     args: [close.payout],
-    query: { enabled: !!perp && toHbar && close.payout > 0n, ...POLL.query },
+    watch: false,
+    query: { enabled: toHbar && close.payout > 0n, ...POLL.query },
   });
   const minHbarOut = hbarQuote !== undefined ? minOutAfterSlippage(hbarQuote, CLOSE_SLIPPAGE_BPS) : undefined;
 
@@ -313,7 +309,7 @@ const OpenPosition = ({
         <p className="mt-1 mb-3 text-xs text-base-content/60">
           Equity {fmtUsdc(close.equity, 4)} minus the {fmtBps(params.closeFeeBps)} closing fee ({fmtUsdc(close.fee, 4)}
           ), at {closePx > 0n ? fmtPrice(closePx) : "the price"}:{" "}
-          {g.status === "ok" || !market.worseFeedClose
+          {g.status === "ok"
             ? "Chainlink's price when the transaction runs."
             : "prices are bad right now, so the close settles at whichever feed is worse for you."}{" "}
           Closing works in close-only mode too.
