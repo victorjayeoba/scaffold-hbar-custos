@@ -7,9 +7,11 @@ Everything below can be checked on HashScan. HashScan opens a transaction from i
 | Contract | Hedera ID | EVM address |
 | --- | --- | --- |
 | PerpMarket (keeper) | [0.0.10833087](https://hashscan.io/testnet/contract/0.0.10833087) | `0xb79Cc40A4b1d3C135f71Ed6dc4e9a231cC369b67` |
-| LiquidityPool | [0.0.10833082](https://hashscan.io/testnet/contract/0.0.10833082) | `0x06061a60D2f9E99410F1D2b310DCF51A1ff2A3b1` |
+| LiquidityPool | [0.0.10833082](https://hashscan.io/testnet/contract/0.0.10833082) | `0x06061a60D2f9E99410F1D2B310DCF51A1ff2A3b1` |
 | PriceGuard | [0.0.10833074](https://hashscan.io/testnet/contract/0.0.10833074) | `0x293e90142cc9dDF603d9Ab405B43236e8077EF75` |
 | cUSDC-LP share token (HTS, created by the pool) | [0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | `0x0000000000000000000000000000000000a54cc2` |
+
+Source verified on [Sourcify](https://sourcify.dev): LiquidityPool exact match; PerpMarket and PriceGuard match (identical bytecode, source reformatted after the deploy).
 
 Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 ℏ held per run), 36 ℏ reserve. PriceGuard: Chainlink HBAR/USD checked against Supra HBAR/USDT (pair 75), max staleness 7,200 s, max deviation 500 bps. Min collateral 1 USDC. Refuel band 300 bps. Collateral: SaucerSwap testnet USDC 0.0.5449.
 

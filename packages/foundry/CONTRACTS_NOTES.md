@@ -130,7 +130,7 @@ So the gas limit decides how much HBAR must sit in the reserve, and the work act
 | | Hedera ID | EVM address |
 |---|---|---|
 | PerpMarket (keeper) | 0.0.10833087 | `0xb79Cc40A4b1d3C135f71Ed6dc4e9a231cC369b67` |
-| LiquidityPool | 0.0.10833082 | `0x06061a60D2f9E99410F1D2b310DCF51A1ff2A3b1` |
+| LiquidityPool | 0.0.10833082 | `0x06061a60D2f9E99410F1D2B310DCF51A1ff2A3b1` |
 | PriceGuard | 0.0.10833074 | `0x293e90142cc9dDF603d9Ab405B43236e8077EF75` |
 | cUSDC-LP (HTS, created by the pool) | 0.0.10833090 | `0x0000000000000000000000000000000000a54cc2` |
 | USDC (SaucerSwap testnet's) | 0.0.5449 | `0x0000000000000000000000000000000000001549` |
