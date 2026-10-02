@@ -23,7 +23,7 @@ description = "Vendored Yarn release and plugins: minified bundles whose identif
 paths = ['''^\.yarn/(releases|plugins)/''']
 
 [[allowlists]]
-description = "The shared public Alchemy key that upstream scaffold-hbar ships in .env.example (matched by prefix only)"
+description = "The shared public Alchemy key upstream scaffold-hbar ships in .env.example; removed from Custos but still in early history (matched by prefix only)"
 regexTarget = "match"
 regexes = ['''^ALCHEMY_API_KEY=oKxs-0''']
 

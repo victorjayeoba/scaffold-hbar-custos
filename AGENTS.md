@@ -70,7 +70,7 @@ yarn docs:check                       # README.md and AGENTS.md may only name th
 
 `custos.js` signs with `--keystore <name>`, `ETH_KEYSTORE_ACCOUNT`, or `DEPLOYER_PRIVATE_KEY` from the shell. It reads its variables (`KEEPER_INTERVAL`, `KEEPER_GAS_LIMIT`, `KEEPER_GAS_PRICE`, `KEEPER_FUND`, `MIN_COLLATERAL`, `MAX_SWAP_DEVIATION_BPS`, `SHARE_TOKEN_FEE`, `DEMO_POOL_HBAR`, `DEMO_TRADE_HBAR`, `HEDERA_RPC_URL`) from the shell environment, not from `packages/foundry/.env`. Never write a private key into a file.
 
-Do not use `yarn foundry:deploy --network hedera_testnet` for Custos: `forge script` can't deploy through the Hedera relay or simulate HSS/HTS. Use the `custos:*` scripts.
+Do not use `yarn foundry:deploy --network hedera_testnet` for Custos: `forge script` can't deploy through the Hedera relay or simulate HSS/HTS. Use the `custos:*` scripts. A local deploy (`yarn foundry:chain`, then `yarn foundry:deploy`) still goes through the Makefile, so it needs `make`: use Git Bash or WSL on Windows.
 
 ## Invariants: do not break these
 
