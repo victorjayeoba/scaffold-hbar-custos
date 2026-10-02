@@ -199,7 +199,9 @@ export const MarketHeader = ({ market, now }: { market: TradeMarket; now?: numbe
             ? "Reading the network's schedule…"
             : nextCheck > 0
               ? `Next network check in ${countdown(nextCheck)}: it charges funding and liquidates anyone under margin.`
-              : "A network check is due now."}
+              : keeper.interval !== undefined && -nextCheck > 2 * keeper.interval
+                ? "The network's checks have stopped: no liquidations or funding until someone revives the keeper."
+                : "A network check is due now."}
         </span>
         <Link href="/keeper" className="link">
           Watch the keeper

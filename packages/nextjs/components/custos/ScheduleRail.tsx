@@ -67,7 +67,11 @@ export const ScheduleRail = () => {
           {live &&
             due > 0 &&
             `until the network runs check ${keeper.runCount! + 1}. Booked on Hedera for ${clock(next)} UTC.`}
-          {live && due <= 0 && "The booked check is due. Hedera runs it in the next few seconds."}
+          {live &&
+            due <= 0 &&
+            -due <= 2 * interval &&
+            "The booked check is due. Hedera runs it in the next few seconds."}
+          {live && -due > 2 * interval && "The booked check never ran, so the chain has stopped. Anyone can revive it."}
         </span>
       </figcaption>
     </figure>
