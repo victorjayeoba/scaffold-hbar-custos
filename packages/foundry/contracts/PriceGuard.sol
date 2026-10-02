@@ -121,7 +121,10 @@ contract PriceGuard is Ownable {
 
     function _readChainlink() internal view returns (uint256 p, uint256 at) {
         try chainlink.latestRoundData() returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80) {
-            if (answer > 0) return (uint256(answer) * _chainlinkScale, updatedAt);
+            // an answer too large to scale is as useless as no answer: read it as unavailable, never revert
+            if (answer > 0 && uint256(answer) <= type(uint256).max / _chainlinkScale) {
+                return (uint256(answer) * _chainlinkScale, updatedAt);
+            }
         } catch { }
         return (0, 0);
     }
@@ -129,7 +132,13 @@ contract PriceGuard is Ownable {
     function _readSupra() internal view returns (uint256 p, uint256 at) {
         try supra.getSvalue(supraPair) returns (ISupraSValueFeed.PriceFeed memory feed) {
             if (feed.price == 0 || feed.decimals > 36) return (0, 0);
-            p = feed.decimals <= 18 ? feed.price * 10 ** (18 - feed.decimals) : feed.price / 10 ** (feed.decimals - 18);
+            if (feed.decimals <= 18) {
+                uint256 scale = 10 ** (18 - feed.decimals);
+                if (feed.price > type(uint256).max / scale) return (0, 0); // too large to scale: unavailable
+                p = feed.price * scale;
+            } else {
+                p = feed.price / 10 ** (feed.decimals - 18);
+            }
             return (p, feed.time / 1000);
         } catch { }
         return (0, 0);

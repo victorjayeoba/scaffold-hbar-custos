@@ -7,6 +7,7 @@ import { PerpMarket } from "../contracts/PerpMarket.sol";
 import { MarginAccount } from "../contracts/MarginAccount.sol";
 import { PriceGuard } from "../contracts/PriceGuard.sol";
 import { LiquidityPool } from "../contracts/LiquidityPool.sol";
+import { ScheduledKeeper } from "../contracts/ScheduledKeeper.sol";
 
 contract PerpMarketTest is CustosBase {
     /*//////////////////////////////////////////////////////////////
@@ -354,7 +355,7 @@ contract PerpMarketTest is CustosBase {
         market.openWithHbar(true, 10, 0);
 
         PerpMarket noSwap = new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 1e8, address(0), address(0), 1e6, 9_500
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 50, address(0), address(0), 1e6, 9_500
         );
         vm.deal(alice, 1e8);
         vm.prank(alice);
@@ -457,12 +458,62 @@ contract PerpMarketTest is CustosBase {
         assertEq(market.requiredLiquidity(), 2000e6);
     }
 
-    function test_setRunCostEstimateOnlyOwner() public {
-        market.setRunCostEstimate(5e7);
-        assertEq(market.runCostEstimate(), 5e7);
+    function test_setGasPriceOnlyOwner() public {
+        market.setGasPrice(20);
+        assertEq(market.gasPrice(), 20);
+        assertEq(market.runCostEstimate(), 2_500_000 * 20);
         vm.prank(alice);
         vm.expectRevert();
-        market.setRunCostEstimate(1);
+        market.setGasPrice(1);
+        vm.expectRevert(ScheduledKeeper.ScheduledKeeper__InvalidConfig.selector);
+        market.setGasPrice(1_000_001);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+               KEEPER COST: HEDERA HOLDS THE WHOLE GAS LIMIT
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev The testnet failure (30 Sep): 5.02 HBAR in the reserve, a 6M-gas run at 85 tinybars needs 5.10 HBAR held,
+    ///      and runsLeft() still said 3 because it divided by a flat 1.65 HBAR estimate.
+    function test_runsLeftCountsTheFullGasHold() public {
+        market.setGasPrice(85);
+        uint256 hold = 2_500_000 * 85; // 2.125 HBAR
+        vm.deal(address(market), hold - 1);
+        assertEq(market.runsLeft(), 0);
+        assertFalse(market.canPayNextRun());
+        vm.deal(address(market), hold);
+        assertEq(market.runsLeft(), 1);
+        assertTrue(market.canPayNextRun());
+    }
+
+    function test_tickRecordsTheGasPriceItRanAt() public {
+        market.revive();
+        vm.warp(market.nextRunAt());
+        vm.txGasPrice(82); // what a scheduled run sees on testnet
+        vm.expectEmit(false, false, false, true, address(market));
+        emit ScheduledKeeper.GasPriceSet(82);
+        _tick();
+        assertEq(market.gasPrice(), 82);
+        assertEq(market.runCostEstimate(), 2_500_000 * 82);
+    }
+
+    function test_tickIgnoresANonsenseGasPrice() public {
+        market.revive();
+        vm.warp(market.nextRunAt());
+        vm.txGasPrice(82e10); // a weibar-scaled value would be 1e10 too big: keep the last good price
+        _tick();
+        assertEq(market.gasPrice(), 40);
+    }
+
+    function test_refuelTopsUpWhenTheHoldOutgrowsTheReserve() public {
+        market.revive();
+        vm.warp(market.nextRunAt());
+        vm.deal(address(market), 20e8); // 20 runs at 1 HBAR each: no refuel needed...
+        vm.txGasPrice(80); // ...until the gas price doubles: 2 HBAR per run, 10 runs left
+        vm.expectEmit(false, false, false, false, address(market));
+        emit PerpMarket.Refueled(0, 0, 0);
+        _tick();
+        assertGe(market.runsLeft(), 12);
     }
 
     function test_associateDoesNotRevertOffHedera() public {
@@ -478,5 +529,214 @@ contract PerpMarketTest is CustosBase {
         new PerpMarket(
             address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(router), address(0), 1e6, 9_500
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                     AUDIT REGRESSIONS (2026-10-02)
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev M-1: anyone could tick 5 s early with just enough gas to skip the sweep, making the booked run revert.
+    function test_onlyTheNetworkCanTick() public {
+        _open(alice, true, 100e6, 10);
+        market.revive();
+        uint256 at = market.nextRunAt();
+        vm.warp(at);
+        _setPrice(10_900_000); // alice underwater
+
+        vm.expectRevert(ScheduledKeeper.ScheduledKeeper__OnlyNetwork.selector);
+        market.tick{ gas: 1_640_000 }();
+        vm.prank(alice);
+        vm.expectRevert(ScheduledKeeper.ScheduledKeeper__OnlyNetwork.selector);
+        market.tick();
+
+        assertEq(market.nextRunAt(), at); // nothing moved
+        _tick(); // the network's own run still liquidates
+        assertEq(market.traderCount(), 0);
+    }
+
+    function testFuzz_noOutsiderCanTick(address caller) public {
+        vm.assume(caller != address(market));
+        market.revive();
+        vm.warp(market.nextRunAt());
+        vm.prank(caller);
+        vm.expectRevert(ScheduledKeeper.ScheduledKeeper__OnlyNetwork.selector);
+        market.tick();
+    }
+
+    /// @dev M-2: dust positions padded the sweep for free.
+    function test_minCollateral() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(PerpMarket.PerpMarket__BelowMinCollateral.selector, MIN_COLLATERAL));
+        market.open(true, MIN_COLLATERAL - 1, 10);
+        _open(alice, true, MIN_COLLATERAL, 10);
+        assertEq(market.traderCount(), 1);
+
+        vm.deal(bob, 1e8);
+        vm.prank(bob); // 0.1 HBAR swaps to 0.227 USDC: under the minimum
+        vm.expectRevert(abi.encodeWithSelector(PerpMarket.PerpMarket__BelowMinCollateral.selector, MIN_COLLATERAL));
+        market.openWithHbar{ value: 0.1e8 }(true, 10, 0);
+    }
+
+    function test_constructorRejectsBadConfig() public {
+        vm.expectRevert(PerpMarket.PerpMarket__InvalidConfig.selector);
+        new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 0, 100
+        );
+        vm.expectRevert(PerpMarket.PerpMarket__InvalidConfig.selector);
+        new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 1, 10_000
+        );
+    }
+
+    /// @dev M-3: a close at a stale or deviated price used Chainlink's last answer even when it favoured the trader.
+    function test_closeAtDeviatedPriceUsesTheWorseFeed() public {
+        _open(alice, true, 100e6, 10); // long
+        _open(bob, false, 100e6, 10); // short
+        vm.warp(block.timestamp + 300);
+        chainlink.set(13_000_000, block.timestamp); // Chainlink says +8%
+        supra.set(11_000_000, block.timestamp); // Supra says -8%: Deviated
+        assertEq(uint256(guard.status()), uint256(PriceGuard.Status.Deviated));
+
+        assertEq(market.closePrice(alice), 0.11e18); // a long settles at the lower price
+        assertEq(market.closePrice(bob), 0.13e18); // a short at the higher one
+        vm.expectEmit(true, false, false, false, address(market));
+        emit PerpMarket.Closed(alice, 0.11e18, 0, 0, 0, 0);
+        vm.prank(alice);
+        market.close();
+        vm.expectEmit(true, false, false, false, address(market));
+        emit PerpMarket.Closed(bob, 0.13e18, 0, 0, 0, 0);
+        vm.prank(bob);
+        market.close();
+    }
+
+    function test_closeWithOneFeedDownUsesTheOther() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 300);
+        chainlink.set(0, block.timestamp); // Chainlink down
+        supra.set(12_500_000, block.timestamp);
+        assertEq(market.closePrice(alice), 0.125e18);
+        vm.prank(alice);
+        market.close(); // the market is never frozen while one feed answers
+        assertEq(market.traderCount(), 0);
+    }
+
+    function test_closeRevertsWithNoPriceAtAll() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 300);
+        chainlink.set(0, block.timestamp);
+        supra.set(0, block.timestamp);
+        vm.prank(alice);
+        vm.expectRevert(PerpMarket.PerpMarket__NoPrice.selector);
+        market.close();
+    }
+
+    /// @dev L-2: refuel was public and its slippage came from a same-transaction quote.
+    function test_refuelIsKeeperOnly() public {
+        vm.deal(address(market), 5e8);
+        vm.prank(alice);
+        vm.expectRevert(PerpMarket.PerpMarket__OnlyKeeper.selector);
+        market.refuel();
+    }
+
+    function test_refuelRefusesAFillFarBelowTheOracle() public {
+        vm.deal(address(market), 5e8);
+        // SaucerSwap pushed to 100 USDC per HBAR: 50 USDC buys 0.5 HBAR, under the floor of 1% of ~416 HBAR
+        router.setRate(100_000_000);
+        vm.prank(address(market));
+        vm.expectRevert(bytes("slippage"));
+        market.refuel();
+    }
+
+    function test_refuelNeedsAnOkPrice() public {
+        vm.deal(address(market), 5e8);
+        supra.set(10_000_000, block.timestamp); // Deviated
+        vm.prank(address(market));
+        vm.expectRevert(abi.encodeWithSelector(PriceGuard.PriceGuard__NotOk.selector, PriceGuard.Status.Deviated));
+        market.refuel();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      SAUCERSWAP: CLOSE TO HBAR
+    //////////////////////////////////////////////////////////////*/
+
+    function test_closeToHbarPaysOutInHbar() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 300);
+        _setPrice(12_600_000); // +5%: payout is about 99 + 50 - 1 USDC
+        assertEq(market.quoteUsdcToHbar(100e6), uint256(100e6) * 1e8 / 2_270_000);
+
+        uint256 usdcBefore = usdc.balanceOf(alice);
+        vm.prank(alice);
+        uint256 hbarOut = market.closeToHbar(0);
+        assertGt(hbarOut, 60e8); // ~148 USDC at 2.27 USDC per HBAR is ~65 HBAR
+        assertEq(alice.balance, hbarOut);
+        assertEq(usdc.balanceOf(alice), usdcBefore); // no USDC: it all came as HBAR
+        assertEq(usdc.balanceOf(address(market)), 0);
+    }
+
+    function test_closeToHbarRespectsSlippage() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 300);
+        _setPrice(12_000_000);
+        vm.prank(alice);
+        vm.expectRevert(bytes("slippage"));
+        market.closeToHbar(type(uint256).max);
+    }
+
+    function test_closeToHbarWithNothingToPay() public {
+        _open(alice, true, 10e6, 50);
+        vm.warp(block.timestamp + 300);
+        _setPrice(11_000_000); // -8% at 50x: equity gone
+        vm.prank(alice);
+        assertEq(market.closeToHbar(0), 0);
+        assertEq(alice.balance, 0);
+        assertEq(market.traderCount(), 0);
+    }
+
+    function test_closeToHbarDisabledWithoutRouter() public {
+        PerpMarket noSwap = new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 50, address(0), address(0), 1e6, 9_500
+        );
+        vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
+        noSwap.closeToHbar(0);
+        vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
+        noSwap.quoteUsdcToHbar(1e6);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        POOL ACCOUNTING HOOKS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_accrueFundingIsPublic() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 1 hours);
+        vm.prank(bob);
+        market.accrueFunding();
+        assertEq(market.fundingUpdatedAt(), block.timestamp);
+        assertGt(market.fundingIndex(), 0);
+    }
+
+    function test_traderGainForPool() public {
+        (int256 gain, bool ok) = market.traderGainForPool();
+        assertEq(gain, 0);
+        assertTrue(ok); // nothing open: nothing to price
+
+        _open(alice, true, 100e6, 10);
+        _setPrice(12_600_000);
+        (gain, ok) = market.traderGainForPool();
+        assertTrue(ok);
+        assertApproxEqAbs(gain, 50e6, 1e3);
+
+        supra.set(10_000_000, block.timestamp); // Deviated
+        (, ok) = market.traderGainForPool();
+        assertFalse(ok);
+    }
+
+    function test_addCollateralCountsInTotal() public {
+        _open(alice, true, 100e6, 10);
+        vm.prank(alice);
+        market.addCollateral(25e6);
+        assertEq(market.totalCollateral(), 99e6 + 25e6);
+        assertEq(market.positionOf(alice).collateral, 124e6);
     }
 }

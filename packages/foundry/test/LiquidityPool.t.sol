@@ -371,7 +371,7 @@ contract LiquidityPoolTest is CustosBase {
     }
 
     /// @dev Withdrawing exactly `assets` always burns at least the shares redeeming would need.
-    function testFuzz_withdrawRoundsAgainstTheCaller(uint256 assets) public {
+    function testFuzz_withdrawRoundsAgainstTheCaller(uint256 assets) public view {
         assets = bound(assets, 1, 5_000e6);
         assertGe(pool.previewWithdraw(assets), pool.convertToShares(assets));
     }

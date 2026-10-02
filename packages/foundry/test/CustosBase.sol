@@ -58,7 +58,7 @@ abstract contract CustosBase is Test {
             address(this),
             300,
             2_500_000,
-            1e8,
+            40, // tinybars per gas: a 2.5M-gas run holds 1 HBAR
             address(router),
             WHBAR,
             MIN_COLLATERAL,

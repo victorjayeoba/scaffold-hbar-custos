@@ -10,6 +10,9 @@ import { HederaResponseCodes } from "hedera-forking/HederaResponseCodes.sol";
  * @notice Runs `_work()` every `interval` seconds with no bot: each `tick()` books the next one on the
  *         Hedera Schedule Service (HIP-1215). The contract pays for its own scheduled runs from its HBAR
  *         balance, so keep it funded with `fund()`.
+ *         Hedera will only start a scheduled run if the payer holds the run's whole gas limit at the current gas
+ *         price (verified on testnet: a 5M-gas run failed INSUFFICIENT_PAYER_BALANCE with 3.6 HBAR at 82 tinybar
+ *         per gas). So one run costs up to `gasLimit × gasPrice`, and that is what `runsLeft()` counts.
  * @dev Only the network can tick. When the Schedule Service executes a call the contract booked, `msg.sender`
  *      (and `tx.origin`) is the contract itself (verified on Hedera testnet), so `tick()` accepts nothing else.
  *      Nobody can tick early, skip work, or make a booked run revert.
@@ -35,6 +38,8 @@ abstract contract ScheduledKeeper {
     /// @notice How early `tick()` is accepted. `block.timestamp` is the start of Hedera's ~2 s block, so a
     ///         schedule that fires exactly at `nextRunAt` can see a timestamp a second or two before it.
     uint256 public constant TIMESTAMP_TOLERANCE = 5;
+    /// @notice Gas prices above this (tinybars per gas) are ignored as nonsense rather than recorded.
+    uint256 public constant MAX_GAS_PRICE = 1_000_000;
 
     uint256 public immutable interval;
     uint256 public immutable gasLimit;
@@ -43,8 +48,8 @@ abstract contract ScheduledKeeper {
     uint256 public lastRunAt;
     address public nextSchedule;
     uint256 public runCount;
-    /// @notice Estimated tinybars one scheduled run costs, for `runsLeft()`.
-    uint256 public runCostEstimate;
+    /// @notice Tinybars per gas. Every network tick records the price it actually ran at (`tx.gasprice`).
+    uint256 public gasPrice;
 
     bool private _ticking;
 
@@ -54,13 +59,18 @@ abstract contract ScheduledKeeper {
     event Revived(address indexed by);
     event Funded(address indexed from, uint256 amount);
     event Stopped(uint256 runs);
-    event RunCostEstimateSet(uint256 tinybars);
+    event GasPriceSet(uint256 tinybarsPerGas);
 
-    constructor(uint256 interval_, uint256 gasLimit_, uint256 runCostEstimate_) {
-        if (interval_ == 0 || gasLimit_ <= SCHEDULE_GAS_RESERVE) revert ScheduledKeeper__InvalidConfig();
+    /// @param interval_ seconds between ticks
+    /// @param gasLimit_ gas each tick is booked with; must exceed `SCHEDULE_GAS_RESERVE`
+    /// @param gasPrice_ starting estimate of the gas price in tinybars per gas (ticks then measure it)
+    constructor(uint256 interval_, uint256 gasLimit_, uint256 gasPrice_) {
+        if (interval_ == 0 || gasLimit_ <= SCHEDULE_GAS_RESERVE || gasPrice_ > MAX_GAS_PRICE) {
+            revert ScheduledKeeper__InvalidConfig();
+        }
         interval = interval_;
         gasLimit = gasLimit_;
-        runCostEstimate = runCostEstimate_;
+        gasPrice = gasPrice_;
     }
 
     /// @notice Called by the Schedule Service at `nextRunAt`, and by nothing else.
@@ -71,6 +81,10 @@ abstract contract ScheduledKeeper {
             revert ScheduledKeeper__TooEarly(nextRunAt);
         }
         _ticking = true;
+
+        // In a scheduled run tx.gasprice is the network's gas price in tinybars (82 on testnet, 2026-10-02).
+        uint256 price = tx.gasprice;
+        if (price != 0 && price != gasPrice && price <= MAX_GAS_PRICE) _setGasPrice(price);
 
         lastRunAt = block.timestamp;
         uint256 run = ++runCount;
@@ -103,6 +117,7 @@ abstract contract ScheduledKeeper {
 
     /// @notice Starts the chain, or restarts it when a tick is more than `2 × interval` overdue. Anyone can call.
     function revive() external {
+        if (_ticking) revert ScheduledKeeper__Reentrant();
         if (nextRunAt != 0) {
             uint256 overdueAt = nextRunAt + 2 * interval;
             if (block.timestamp <= overdueAt) revert ScheduledKeeper__NotOverdue(overdueAt);
@@ -116,10 +131,23 @@ abstract contract ScheduledKeeper {
         emit Funded(msg.sender, msg.value);
     }
 
-    /// @notice Scheduled runs the current reserve covers, at `runCostEstimate` each.
-    function runsLeft() external view returns (uint256) {
-        if (runCostEstimate == 0) return type(uint256).max;
-        return address(this).balance / runCostEstimate;
+    /// @notice The most one scheduled run can cost, in tinybars: its whole gas limit at the current gas price.
+    ///         Hedera won't start a run unless the reserve holds this much.
+    function runCostEstimate() public view returns (uint256) {
+        return gasLimit * gasPrice;
+    }
+
+    /// @notice Scheduled runs the current reserve can pay for, counting each at `runCostEstimate()`. A run usually
+    ///         costs less (Hedera charges at least 80% of the gas limit), so this never overstates.
+    function runsLeft() public view returns (uint256) {
+        uint256 cost = runCostEstimate();
+        if (cost == 0) return type(uint256).max;
+        return address(this).balance / cost;
+    }
+
+    /// @notice False when the reserve can't cover the next run's gas hold: Hedera would refuse to start it.
+    function canPayNextRun() external view returns (bool) {
+        return address(this).balance >= runCostEstimate();
     }
 
     /// @dev Books `tick()` at `at`, or the next second with capacity (up to `CAPACITY_PROBES`).
@@ -145,9 +173,10 @@ abstract contract ScheduledKeeper {
         return false;
     }
 
-    function _setRunCostEstimate(uint256 tinybars) internal {
-        runCostEstimate = tinybars;
-        emit RunCostEstimateSet(tinybars);
+    function _setGasPrice(uint256 tinybarsPerGas) internal {
+        if (tinybarsPerGas > MAX_GAS_PRICE) revert ScheduledKeeper__InvalidConfig();
+        gasPrice = tinybarsPerGas;
+        emit GasPriceSet(tinybarsPerGas);
     }
 
     /// @dev The job. Reverting is safe: the tick is still recorded and the next one booked.

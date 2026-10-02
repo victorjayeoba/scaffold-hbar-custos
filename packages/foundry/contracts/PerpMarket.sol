@@ -98,10 +98,10 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     /// @param usdc_ collateral token (HTS USDC on Hedera)
     /// @param guard_ the PriceGuard every trade and tick reads
     /// @param pool_ the LiquidityPool that takes the other side of every trade
-    /// @param owner_ may change `runCostEstimate` only; it cannot move funds
+    /// @param owner_ may correct the keeper's gas price estimate only; it cannot move funds
     /// @param interval_ seconds between network ticks
     /// @param gasLimit_ gas each scheduled tick is booked with; must exceed `SCHEDULE_GAS_RESERVE`
-    /// @param runCostEstimate_ tinybars one tick costs, for `runsLeft()` and refuelling
+    /// @param gasPrice_ starting gas price estimate, tinybars per gas (each network tick then records the real one)
     /// @param router_ SaucerSwap V1 router, or zero to disable the HBAR paths
     /// @param whbar_ WHBAR token, zero exactly when `router_` is zero
     /// @param minCollateral_ smallest collateral a position may open with, USDC
@@ -113,12 +113,12 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         address owner_,
         uint256 interval_,
         uint256 gasLimit_,
-        uint256 runCostEstimate_,
+        uint256 gasPrice_,
         address router_,
         address whbar_,
         uint256 minCollateral_,
         uint256 maxSwapDeviationBps_
-    ) ScheduledKeeper(interval_, gasLimit_, runCostEstimate_) Ownable(owner_) {
+    ) ScheduledKeeper(interval_, gasLimit_, gasPrice_) Ownable(owner_) {
         if (usdc_ == address(0) || guard_ == address(0) || pool_ == address(0)) {
             revert PerpMarket__InvalidAddress();
         }
@@ -212,13 +212,14 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     /// @return hbarOut tinybars added to the reserve
     function refuel() external returns (uint256 hbarOut) {
         if (msg.sender != address(this)) revert PerpMarket__OnlyKeeper();
-        if (address(router) == address(0) || runCostEstimate == 0) revert PerpMarket__SwapDisabled();
-        uint256 runs = address(this).balance / runCostEstimate;
+        uint256 runCost = runCostEstimate();
+        if (address(router) == address(0) || runCost == 0) revert PerpMarket__SwapDisabled();
+        uint256 runs = address(this).balance / runCost;
         if (runs >= REFUEL_BELOW_RUNS) revert PerpMarket__ReserveNotLow(runs);
         uint256 price = guard.price(); // the floor below needs a price both feeds agree on
 
         address[] memory path = _path(address(usdc), whbar);
-        uint256 usdcIn = router.getAmountsIn((REFUEL_TARGET_RUNS - runs) * runCostEstimate, path)[0];
+        uint256 usdcIn = router.getAmountsIn((REFUEL_TARGET_RUNS - runs) * runCost, path)[0];
         uint256 free = pool.freeAssets();
         if (usdcIn > free) usdcIn = free;
         if (usdcIn > REFUEL_MAX_USDC) usdcIn = REFUEL_MAX_USDC;
@@ -243,9 +244,10 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         emit Associated(ok, rc);
     }
 
-    /// @notice Updates the tinybars one tick is assumed to cost (for `runsLeft()` and refuelling).
-    function setRunCostEstimate(uint256 tinybars) external onlyOwner {
-        _setRunCostEstimate(tinybars);
+    /// @notice Corrects the keeper's gas price estimate (tinybars per gas). Each network tick records the real one,
+    ///         so this is only needed before the first tick or if the price jumps while the chain is stopped.
+    function setGasPrice(uint256 tinybarsPerGas) external onlyOwner {
+        _setGasPrice(tinybarsPerGas);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -347,8 +349,8 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         if (status == PriceGuard.Status.Ok) _sweep(price);
         else emit SweepSkipped(status);
 
-        if (address(router) != address(0) && runCostEstimate > 0) {
-            if (address(this).balance / runCostEstimate < REFUEL_BELOW_RUNS) {
+        if (address(router) != address(0) && gasPrice > 0) {
+            if (runsLeft() < REFUEL_BELOW_RUNS) {
                 try this.refuel() { } catch { } // a failed refuel must never undo the sweep
             }
         }

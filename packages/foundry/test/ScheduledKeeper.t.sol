@@ -11,7 +11,7 @@ contract FlakyKeeper is ScheduledKeeper {
     bool public fail;
     uint256 public done;
 
-    constructor() ScheduledKeeper(300, 2_000_000, 1e8) { }
+    constructor() ScheduledKeeper(300, 2_000_000, 50) { }
 
     function setFail(bool value) external {
         fail = value;
