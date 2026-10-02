@@ -24,6 +24,7 @@ Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 �
 | Open with USDC: 50x short, 1.2 USDC | [`0xfac6b7ec…7bdba`](https://hashscan.io/testnet/transaction/0xfac6b7ecccee1f124fd9eb56be2f9657a8457dee24ccef923c2f434abbb7bdba) |
 | Open with USDC: 2x long, 1 USDC | [`0xd3f325cf…443de8`](https://hashscan.io/testnet/transaction/0xd3f325cf8191e5e197b9af1f45a9ab90173079181724f9f331bb603726443de8) |
 | Close, paid out in USDC | [`0xbaa65216…c61df6`](https://hashscan.io/testnet/transaction/0xbaa65216cdb2988c3164ae25193927e622255133d6866d3c46605d6f83c61df6) |
+| Close straight to HBAR: the USDC payout swapped on SaucerSwap (`closeToHbar`) | [`0x1e427e54…d91c36`](https://hashscan.io/testnet/transaction/0x1e427e54abd7594d815afa933b1dbacb31ec45ca6f5133f9b416801117d91c36) |
 | Redeem 10 cUSDC-LP, pool burns the shares | [`0x90487242…2d7422`](https://hashscan.io/testnet/transaction/0x9048724259694f86a20fa69aa069a89d3e85045703b0a6f1a9b302d66c2d7422) |
 
 ## The network keeps the market
