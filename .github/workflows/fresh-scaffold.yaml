@@ -1,0 +1,99 @@
+name: Fresh scaffold
+
+# The bounty gate, run for real: create a project from this template with the
+# latest create-scaffold-hbar CLI into an empty folder, once with Yarn and once
+# with npm, then check it item by item with scripts/check-scaffold.sh (files,
+# install, lint, types, doc drift, forge build and test, next build, and the
+# production app answering on every route, plus the Playwright smoke test).
+#
+# Two template sources:
+# - checkout: this commit, through the CLI's CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR
+#   seam, so a branch or pull request is tested before it lands.
+# - github:   `--template owner/repo#ref`, downloaded from GitHub exactly as a
+#   judge's `npm create scaffold-hbar@latest --template owner/repo` does. It
+#   only works once the repository is public. Skipped on pull requests.
+#
+# The daily run catches a new CLI release. It does nothing in a project
+# scaffolded from this template (see the `if:` below); you can delete it there.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fresh-scaffold-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scaffold:
+    if: github.repository == 'victorjayeoba/scaffold-hbar-custos'
+    name: ${{ matrix.package-manager }} from ${{ matrix.source }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        package-manager: [yarn, npm]
+        source: [checkout, github]
+        exclude:
+          # A pull request's branch may live in a fork; scaffold it from the checkout only.
+          - source: ${{ github.event_name == 'pull_request' && 'github' || 'none' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: template
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # The CLI checks forge >= 1.4.0 and runs `forge install` for the Foundry libraries.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Git identity for the scaffold's first commit
+        run: |
+          git config --global user.name "Fresh scaffold check"
+          git config --global user.email "fresh-scaffold@users.noreply.github.com"
+
+      - name: Scaffold with the real CLI
+        working-directory: ${{ runner.temp }}
+        env:
+          TEMPLATE: ${{ github.repository }}${{ matrix.source == 'github' && format('#{0}', github.ref_name) || '' }}
+          CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR: ${{ matrix.source == 'checkout' && format('{0}/template', github.workspace) || '' }}
+          PACKAGE_MANAGER: ${{ matrix.package-manager }}
+        # npx runs the same package as `npm create scaffold-hbar@latest`.
+        run: |
+          npx --yes create-scaffold-hbar@latest app --template "$TEMPLATE" \
+            --package-manager "$PACKAGE_MANAGER" --ci --skip-hedera-skills
+          test -f app/package.json
+
+      - name: Install Chromium for the smoke test
+        working-directory: ${{ runner.temp }}/app
+        run: ${{ matrix.package-manager == 'npm' && 'npm run' || 'yarn' }} next:e2e:install
+
+      - name: Check the project
+        env:
+          E2E: "1"
+          LOG_DIR: ${{ runner.temp }}/logs
+        run: bash template/scripts/check-scaffold.sh "${{ runner.temp }}/app" "${{ matrix.package-manager }}"
+
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scaffold-logs-${{ matrix.package-manager }}-${{ matrix.source }}
+          path: |
+            ${{ runner.temp }}/logs
+            ${{ runner.temp }}/app/packages/nextjs/e2e/.results
+          if-no-files-found: ignore
+          retention-days: 7

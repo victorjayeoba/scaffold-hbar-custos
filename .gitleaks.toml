@@ -1,0 +1,44 @@
+# Secret scanning (.github/workflows/gitleaks.yaml): gitleaks' default rules,
+# two rules for the keys a Hedera template is most likely to leak (the defaults
+# miss raw private keys), and narrow allowlists for things public by design.
+# Never allowlist 64-hex values in general: a private key looks like a tx hash.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "hedera-der-private-key"
+description = "Hedera ED25519 or ECDSA private key in DER hex (what the portal and SDK export)"
+regex = '''(?i)\b(?:302e020100300506032b657004220420|3030020100300706052b8104000a04220420)[0-9a-f]{64}\b'''
+keywords = ["302e020100300506032b6570", "3030020100300706052b8104000a"]
+
+[[rules]]
+id = "evm-private-key"
+description = "Raw 32-byte private key assigned to a key-like name"
+regex = '''(?i)(?:private[_-]?key|operator[_-]?key|deployer[_-]?key|signer[_-]?key|[_-]pk|\bpk)["']?\s*[:=]\s*["']?((?:0x)?[0-9a-f]{64})\b'''
+secretGroup = 1
+keywords = ["key", "pk"]
+
+[[allowlists]]
+description = "Vendored Yarn release and plugins: minified bundles whose identifiers look random"
+paths = ['''^\.yarn/(releases|plugins)/''']
+
+[[allowlists]]
+description = "The shared public Alchemy key that upstream scaffold-hbar ships in .env.example (matched by prefix only)"
+regexTarget = "match"
+regexes = ['''^ALCHEMY_API_KEY=oKxs-0''']
+
+[[allowlists]]
+description = "Public on-chain identifiers: EVM addresses, Hedera entity ids and transaction ids"
+regexes = [
+  '''^0x[0-9a-fA-F]{40}$''',
+  '''^\d+\.\d+\.\d+(@\d+\.\d+)?$''',
+  '''^\d+\.\d+\.\d+-\d+-\d+$''',
+]
+
+[[allowlists]]
+description = "Public testnet records: deployed addresses and the HashScan proof transactions the app links to"
+paths = [
+  '''^packages/foundry/deployments/\d+\.json$''',
+  '''^packages/nextjs/contracts/deployedContracts\.ts$''',
+  '''^packages/nextjs/utils/custos/testnet\.ts$''',
+]

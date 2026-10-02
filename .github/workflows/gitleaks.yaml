@@ -1,0 +1,40 @@
+name: Gitleaks
+
+# Scans every commit for committed secrets with gitleaks and .gitleaks.toml.
+# Uses the release binary (checksum-verified) rather than gitleaks-action,
+# which needs a licence key for organisation repositories.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: No committed secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout the full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          VERSION: 8.30.1
+        run: |
+          base=https://github.com/gitleaks/gitleaks/releases/download/v$VERSION
+          curl -sSfLO "$base/gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSfL "$base/gitleaks_${VERSION}_checksums.txt" | grep "linux_x64.tar.gz" | sha256sum --check
+          tar -xzf "gitleaks_${VERSION}_linux_x64.tar.gz" gitleaks
+
+      - name: Scan every commit
+        # --redact keeps anything found out of the public log.
+        run: ./gitleaks git . --config .gitleaks.toml --redact --verbose

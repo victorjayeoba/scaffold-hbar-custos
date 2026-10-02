@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
   },
   webpack: (config, { dev }) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
-    config.externals.push("pino-pretty", "lokijs", "encoding");
+    // @x402/* are optional peers of @coinbase/cdp-sdk (via wagmi); npm installs a cdp-sdk that imports them.
+    config.externals.push("pino-pretty", "lokijs", "encoding", /^@x402\//);
     if (dev) {
       config.watchOptions = {
         followSymlinks: true,
