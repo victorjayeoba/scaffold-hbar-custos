@@ -105,7 +105,7 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 6. **Capacity is per second.** `hasScheduleCapacity` is checked first; if the second is full the keeper tries the next one, up to 10 seconds. If all 10 are full or the booking fails, `nextRunAt` still moves forward and anyone can call `revive()` once the tick is `2 × interval` overdue.
 7. **A failed run breaks the chain silently**, because nothing books the next one. Hence `revive()` (public, only when overdue), a self-call around `_work()` so a revert there still books the next tick, and `canPayNextRun()` for the app to warn early.
 8. **SaucerSwap testnet's USDC pool is ~22x off the oracle.** 1 HBAR buys 2.249 USDC there; Chainlink says $0.1025. A keeper that refuels at that pool overpays ~22x out of LP money. On an earlier deploy with a wide band this drained the LPs to a share price of 0.40. The keeper's refuel must now fill within 3% of the oracle price, so **on testnet refuels fail closed** (the tick still sweeps and reschedules; not one micro-USDC leaves the pool) and the reserve is topped up with `fund()`. On mainnet, where SaucerSwap tracks the market, refuels go through.
-9. **Supra's testnet HBAR/USDT feed pushes about hourly**, and quotes USDT, so it can sit ~3% from Chainlink's HBAR/USD for a while. Staleness is 2 h and deviation 5% for HBAR-USD. Supra's ETH/USDT (pair 19) was seen 2.3 h old, so an ETH market needs a longer staleness window. Pair 1 is stale; don't use it.
+9. **Supra's testnet feeds update at very different speeds.** HBAR/USDT (pair 75) pushes every few minutes to about hourly, and quotes USDT, so it can sit ~3% from Chainlink's HBAR/USD for a while: staleness is 2 h and deviation 5% for HBAR-USD. ETH/USDT (pair 19) was seen **8 h** old (2026-10-03), so a testnet ETH market needs the guard's maximum 1-day window (use about 1 h on mainnet). Pairs 0 and 1 haven't updated in months; don't use them.
 10. **Creating an HTS token from a contract costs about 12 ℏ** (12.14 ℏ measured, fee plus gas). `createShareToken()` takes it as `msg.value` and sends back what's left.
 11. **An account must be associated with an HTS token before it can receive it.** The pool associates itself with USDC (`associate()`); users associate with USDC and with cUSDC-LP through each token's HIP-719 `associate()`. To redeem, a user approves the pool on cUSDC-LP; the pool then pulls and burns the shares.
 12. **`forge script` can't deploy through the Hedera JSON-RPC relay** (the relay rejects the EIP-1898 block parameter Foundry sends when forking), and can't simulate HSS/HTS. `yarn custos:deploy:testnet` uses `forge create` and `cast send`.
@@ -193,14 +193,14 @@ The engine doesn't care what asset it prices: a market is a `PriceGuard` config 
      "chainlink": "0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9",
      "supra": "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917",
      "supraPair": 19,
-     "maxStaleness": 14400,
+     "maxStaleness": 86400,
      "maxDeviationBps": 500,
      "refPrice8": 270000000000
    }
    ```
-   (Chainlink ETH/USD on Hedera testnet, 8 dp; Supra ETH/USDT is pair 19. Supra's ETH feed was seen 2.3 h old, so give it 4 h.)
+   (Chainlink ETH/USD on Hedera testnet, 8 dp; Supra ETH/USDT is pair 19. Supra's testnet ETH feed goes 8+ h between updates, so testnet needs the 1-day maximum; use about 3,600 on mainnet.)
 2. `yarn foundry:test`: `test/Markets.t.sol` runs open, close, network liquidation and pool accounting for **every** market in `markets.json` at its `refPrice8`.
-3. Check the feeds on testnet: `yarn workspace @sh/foundry custos check-market --market ETH-USD`. It deploys only a PriceGuard and reads both feeds; it exits 1 if either feed doesn't answer.
+3. Check the config offline, `yarn workspace @sh/foundry check-markets ETH-USD`, then the feeds on testnet, `yarn custos:check-market:testnet --market ETH-USD`: it deploys only a PriceGuard and reads both feeds, and exits 1 if either doesn't answer. (Run on 2026-10-03: Chainlink 2,657.85, Supra 2,702.77, both answering; PriceGuard `0x1eD9de819a144d7b6C80102Ff5FA83180151949D`.)
 4. Deploy it: `yarn workspace @sh/foundry custos deploy --market ETH-USD`, then `start` and `demo` with the same flag. Its addresses go to `deployments/296-eth-usd.json`; the app keeps showing HBAR-USD.
 
 ### Reuse the engine for lending

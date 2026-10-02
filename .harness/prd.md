@@ -14,7 +14,7 @@ A template is only reusable if a developer can point it at another asset without
    - `chainlink`: Chainlink ETH/USD on Hedera testnet, `0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9` (8 decimals).
    - `supra`: the same Supra push-oracle contract HBAR-USD uses, `0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917`.
    - `supraPair`: `19` (Supra's ETH/USDT). Pair 1 is stale on testnet; don't use it.
-   - `maxStaleness`: `14400` (4 h). Supra's testnet ETH feed has been seen 2.3 h old, so the HBAR market's 2 h would read as Stale.
+   - `maxStaleness`: `86400` (1 day, the most `PriceGuard` allows). Supra's testnet ETH/USDT pushes rarely (it has been seen 8 h old) while its HBAR pair updates every few minutes, so anything shorter reads as Stale on testnet. Note in the README row that mainnet should use about `3600`.
    - `maxDeviationBps`: `500`.
    - `refPrice8`: a typical ETH price with 8 decimals, e.g. `270000000000` ($2,700).
 2. **Test.** Add `packages/foundry/test/markets/EthUsdMarket.t.sol`. It must read the ETH-USD entry from `markets.json` (not hard-code it) and check, on mocks at the reference price:
