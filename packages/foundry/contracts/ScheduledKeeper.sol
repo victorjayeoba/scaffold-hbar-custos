@@ -138,7 +138,7 @@ abstract contract ScheduledKeeper {
     }
 
     /// @notice Scheduled runs the current reserve can pay for, counting each at `runCostEstimate()`. A run usually
-    ///         costs less (Hedera charges at least 80% of the gas limit), so this never overstates.
+    ///         costs less (Hedera charges the gas a run uses; it only holds the full limit), so this never overstates.
     function runsLeft() public view returns (uint256) {
         uint256 cost = runCostEstimate();
         if (cost == 0) return type(uint256).max;

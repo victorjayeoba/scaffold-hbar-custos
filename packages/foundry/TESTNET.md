@@ -33,7 +33,7 @@ Each tick is executed by the Schedule Service from a schedule the previous tick 
 
 | Tick | Executed | What it did |
 | --- | --- | --- |
-| _first tick due 1790983197_ | | |
+| 1 | [`0x5bebf1d8…0038f6`](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) (schedule [0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097), 1790983197.030564046) | Accrued funding, swept the 2 open positions (none underwater), recorded the gas price it ran at (84 tinybar/gas), booked tick 2. Paid by the market itself: 1.359 ℏ for 1,618,265 gas |
 
 ## Earlier deploy: the first liquidation nobody signed (2026-09-29)
 
