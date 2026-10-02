@@ -15,8 +15,8 @@ contract Heartbeat is ScheduledKeeper {
 
     event Beat(uint256 indexed beat, uint256 at);
 
-    constructor(uint256 interval_, uint256 gasLimit_, uint256 runCostEstimate_, uint256 maxBeats_)
-        ScheduledKeeper(interval_, gasLimit_, runCostEstimate_)
+    constructor(uint256 interval_, uint256 gasLimit_, uint256 gasPrice_, uint256 maxBeats_)
+        ScheduledKeeper(interval_, gasLimit_, gasPrice_)
     {
         maxBeats = maxBeats_;
     }

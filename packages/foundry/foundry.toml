@@ -8,15 +8,43 @@ fs_permissions = [
 ]
 ffi = true
 evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
 
 [invariant]
 runs = 256
 depth = 50
 fail_on_revert = true
 
-# Suppress style lints for API/modifier names we don't control
+# Lints excluded on purpose, each reviewed against the code (see CONTRACTS_NOTES.md, "Lint"):
+#   mixed-case-*                    names we don't control (Hedera / OpenZeppelin APIs, test helpers)
+#   block-timestamp                 a keeper is driven by time by design; Hedera consensus time can't be skewed
+#                                   by a single node, and tick() tolerates the ~2 s block start lag on purpose
+#   reentrancy-events / -no-eth     every state-changing entry point is nonReentrant; tick() has its own guard;
+#                                   HTS tokens have no transfer hooks; the router is SaucerSwap's
+#   unsafe-typecast                 every int256/int64 cast is of a value bounded far below the limit (USDC
+#                                   amounts, 1e18 prices); share amounts go through SafeCast
+#   calls-loop                      the only loops call the Schedule Service (≤ 10 capacity probes) and the
+#                                   market's own storage; both are bounded
+#   locked-ether                    the keeper's HBAR reserve can only pay for network runs, by design
+#   boolean-cst / unused-return     false positives on tuple returns and partial tuple reads
+#   missing-zero-check              the WHBAR/router pair is checked together in the constructor
+#   environment-read-across-mutation  test-only: tests read block.timestamp after vm.warp on purpose
 [lint]
-exclude_lints = ["mixed-case-variable", "mixed-case-function"]
+exclude_lints = [
+    "mixed-case-variable",
+    "mixed-case-function",
+    "block-timestamp",
+    "reentrancy-events",
+    "reentrancy-no-eth",
+    "unsafe-typecast",
+    "calls-loop",
+    "locked-ether",
+    "boolean-cst",
+    "unused-return",
+    "missing-zero-check",
+    "environment-read-across-mutation",
+]
 
 [rpc_endpoints]
 localhost = "http://127.0.0.1:8545"

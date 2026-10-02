@@ -3,6 +3,8 @@
 pragma solidity ^0.8.19;
 
 import { Test } from "forge-std/Test.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { htsSetup } from "hedera-forking/htsSetup.sol";
 import { PriceGuard } from "../contracts/PriceGuard.sol";
 import { LiquidityPool } from "../contracts/LiquidityPool.sol";
 import { PerpMarket } from "../contracts/PerpMarket.sol";
@@ -12,10 +14,12 @@ import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockHederaScheduleService } from "./mocks/MockHederaScheduleService.sol";
 import { MockSaucerRouter } from "./mocks/MockSaucerRouter.sol";
 
-/// @dev Full Custos stack on mocks: $0.12 HBAR, 10,000 USDC in the pool.
+/// @dev Full Custos stack on mocks and the HTS emulator: $0.12 HBAR, 10,000 USDC in the pool.
 abstract contract CustosBase is Test {
     address internal constant HSS_ADDRESS = 0x000000000000000000000000000000000000016B;
     uint256 internal constant POOL_SEED = 10_000e6;
+    uint256 internal constant MIN_COLLATERAL = 1e6;
+    uint256 internal constant MAX_SWAP_DEVIATION_BPS = 9_900; // the mock router quotes like SaucerSwap testnet, ~20x off the oracle
 
     MockERC20 internal usdc;
     MockAggregator internal chainlink;
@@ -31,7 +35,10 @@ abstract contract CustosBase is Test {
     address internal bob = makeAddr("bob");
     address internal liquidator = makeAddr("liquidator");
 
+    IERC20 internal shares;
+
     function setUp() public virtual {
+        htsSetup();
         vm.etch(HSS_ADDRESS, address(new MockHederaScheduleService()).code);
         MockHederaScheduleService(HSS_ADDRESS).setHasCapacity(true);
         MockHederaScheduleService(HSS_ADDRESS).setScheduleResponseCode(int64(22));
@@ -45,14 +52,27 @@ abstract contract CustosBase is Test {
         router = new MockSaucerRouter(usdc, WHBAR, 2_270_000); // 1 HBAR = 2.27 USDC, like SaucerSwap testnet
         vm.deal(address(router), 1_000_000e8);
         market = new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_500_000, 1e8, address(router), WHBAR
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_500_000,
+            40, // tinybars per gas: a 2.5M-gas run holds 1 HBAR
+            address(router),
+            WHBAR,
+            MIN_COLLATERAL,
+            MAX_SWAP_DEVIATION_BPS
         );
         vm.deal(address(market), 100e8); // 100 runs: well above the refuel line
         pool.setMarket(address(market));
+        pool.createShareToken{ value: 10e8 }();
+        shares = IERC20(pool.shareToken());
 
         _fund(lp, POOL_SEED);
         vm.startPrank(lp);
         usdc.approve(address(pool), type(uint256).max);
+        shares.approve(address(pool), type(uint256).max);
         pool.deposit(POOL_SEED, lp);
         vm.stopPrank();
 
@@ -76,4 +96,12 @@ abstract contract CustosBase is Test {
         vm.prank(who);
         market.open(isLong, collateral, leverage);
     }
+
+    /// @dev A tick as the Schedule Service runs it: the market calls itself.
+    function _tick() internal {
+        vm.prank(address(market));
+        market.tick();
+    }
+
+    receive() external payable { } // createShareToken refunds the unused fee here
 }

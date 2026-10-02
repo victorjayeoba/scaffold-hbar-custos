@@ -23,6 +23,9 @@ contract PriceGuard is Ownable {
     error PriceGuard__InvalidConfig();
 
     uint256 internal constant BPS = 10_000;
+    /// @notice Upper bounds on what the owner may set, so a guard can never be configured to wave every price through.
+    uint256 public constant MAX_STALENESS_LIMIT = 1 days;
+    uint256 public constant MAX_DEVIATION_LIMIT_BPS = 2_000;
 
     IAggregatorV3 public immutable chainlink;
     ISupraSValueFeed public immutable supra;
@@ -54,6 +57,7 @@ contract PriceGuard is Ownable {
         _setParams(maxStaleness_, maxDeviationBps_);
     }
 
+    /// @notice Changes the staleness window (seconds) and the largest Chainlink/Supra gap allowed (basis points).
     function setParams(uint256 maxStaleness_, uint256 maxDeviationBps_) external onlyOwner {
         _setParams(maxStaleness_, maxDeviationBps_);
     }
@@ -65,8 +69,19 @@ contract PriceGuard is Ownable {
         return p;
     }
 
+    /// @notice Ok, Stale or Deviated, right now.
     function status() external view returns (Status s) {
         (, s,,,) = read();
+    }
+
+    /// @notice Both feeds scaled to 1e18 (0 for a feed that is unavailable) and the status. Never reverts.
+    /// @dev The market uses this to settle a close at the price worse for the trader when the feeds disagree.
+    function prices() external view returns (uint256 chainlinkPrice, uint256 supraPrice, Status status_) {
+        uint256 chainlinkAt;
+        uint256 supraAt;
+        (chainlinkPrice, chainlinkAt) = _readChainlink();
+        (supraPrice, supraAt) = _readSupra();
+        status_ = _status(chainlinkPrice, supraPrice, chainlinkAt, supraAt);
     }
 
     /// @notice Everything the UI shows. Never reverts: a feed that fails to answer reads as `Stale`.
@@ -84,23 +99,32 @@ contract PriceGuard is Ownable {
         (price_, chainlinkAt) = _readChainlink();
         (supraPrice, supraAt) = _readSupra();
 
-        if (price_ > 0 && supraPrice > 0) {
-            uint256 diff = price_ > supraPrice ? price_ - supraPrice : supraPrice - price_;
-            deviationBps = diff * BPS / price_;
-        }
+        deviationBps = _deviationBps(price_, supraPrice);
+        status_ = _status(price_, supraPrice, chainlinkAt, supraAt);
+    }
 
-        if (price_ == 0 || supraPrice == 0 || _isStale(chainlinkAt) || _isStale(supraAt)) {
-            status_ = Status.Stale;
-        } else if (deviationBps > maxDeviationBps) {
-            status_ = Status.Deviated;
-        } else {
-            status_ = Status.Ok;
-        }
+    function _status(uint256 chainlinkPrice, uint256 supraPrice, uint256 chainlinkAt, uint256 supraAt)
+        internal
+        view
+        returns (Status)
+    {
+        if (chainlinkPrice == 0 || supraPrice == 0 || _isStale(chainlinkAt) || _isStale(supraAt)) return Status.Stale;
+        if (_deviationBps(chainlinkPrice, supraPrice) > maxDeviationBps) return Status.Deviated;
+        return Status.Ok;
+    }
+
+    function _deviationBps(uint256 chainlinkPrice, uint256 supraPrice) internal pure returns (uint256) {
+        if (chainlinkPrice == 0 || supraPrice == 0) return 0;
+        uint256 diff = chainlinkPrice > supraPrice ? chainlinkPrice - supraPrice : supraPrice - chainlinkPrice;
+        return diff * BPS / chainlinkPrice;
     }
 
     function _readChainlink() internal view returns (uint256 p, uint256 at) {
         try chainlink.latestRoundData() returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80) {
-            if (answer > 0) return (uint256(answer) * _chainlinkScale, updatedAt);
+            // an answer too large to scale is as useless as no answer: read it as unavailable, never revert
+            if (answer > 0 && uint256(answer) <= type(uint256).max / _chainlinkScale) {
+                return (uint256(answer) * _chainlinkScale, updatedAt);
+            }
         } catch { }
         return (0, 0);
     }
@@ -108,7 +132,13 @@ contract PriceGuard is Ownable {
     function _readSupra() internal view returns (uint256 p, uint256 at) {
         try supra.getSvalue(supraPair) returns (ISupraSValueFeed.PriceFeed memory feed) {
             if (feed.price == 0 || feed.decimals > 36) return (0, 0);
-            p = feed.decimals <= 18 ? feed.price * 10 ** (18 - feed.decimals) : feed.price / 10 ** (feed.decimals - 18);
+            if (feed.decimals <= 18) {
+                uint256 scale = 10 ** (18 - feed.decimals);
+                if (feed.price > type(uint256).max / scale) return (0, 0); // too large to scale: unavailable
+                p = feed.price * scale;
+            } else {
+                p = feed.price / 10 ** (feed.decimals - 18);
+            }
             return (p, feed.time / 1000);
         } catch { }
         return (0, 0);
@@ -119,7 +149,10 @@ contract PriceGuard is Ownable {
     }
 
     function _setParams(uint256 maxStaleness_, uint256 maxDeviationBps_) internal {
-        if (maxStaleness_ == 0 || maxDeviationBps_ == 0 || maxDeviationBps_ >= BPS) revert PriceGuard__InvalidConfig();
+        if (
+            maxStaleness_ == 0 || maxStaleness_ > MAX_STALENESS_LIMIT || maxDeviationBps_ == 0
+                || maxDeviationBps_ > MAX_DEVIATION_LIMIT_BPS
+        ) revert PriceGuard__InvalidConfig();
         maxStaleness = maxStaleness_;
         maxDeviationBps = maxDeviationBps_;
         emit ParamsSet(maxStaleness_, maxDeviationBps_);

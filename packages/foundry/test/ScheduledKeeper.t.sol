@@ -11,7 +11,7 @@ contract FlakyKeeper is ScheduledKeeper {
     bool public fail;
     uint256 public done;
 
-    constructor() ScheduledKeeper(300, 2_000_000, 1e8) { }
+    constructor() ScheduledKeeper(300, 2_000_000, 50) { }
 
     function setFail(bool value) external {
         fail = value;
@@ -57,6 +57,7 @@ contract ScheduledKeeperTest is Test {
 
     function test_tickBeforeStartReverts() public {
         vm.expectRevert(abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__TooEarly.selector, 0));
+        vm.prank(address(keeper));
         keeper.tick();
     }
 
@@ -65,12 +66,14 @@ contract ScheduledKeeperTest is Test {
         uint256 at = keeper.nextRunAt();
         vm.warp(at - 6);
         vm.expectRevert(abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__TooEarly.selector, at));
+        vm.prank(address(keeper));
         keeper.tick();
     }
 
     function test_tickAcceptsHederaBlockTimestampLag() public {
         _start();
         vm.warp(keeper.nextRunAt() - 5); // block started up to ~2 s before the schedule fired
+        vm.prank(address(keeper));
         keeper.tick();
         assertEq(keeper.runCount(), 1);
     }
@@ -80,6 +83,7 @@ contract ScheduledKeeperTest is Test {
         vm.warp(keeper.nextRunAt());
         vm.expectEmit(true, false, false, true, address(keeper));
         emit ScheduledKeeper.Ticked(1, true, "");
+        vm.prank(address(keeper));
         keeper.tick();
 
         assertEq(keeper.done(), 1);
@@ -95,6 +99,7 @@ contract ScheduledKeeperTest is Test {
         vm.warp(keeper.nextRunAt());
         vm.expectEmit(true, false, false, true, address(keeper));
         emit ScheduledKeeper.Ticked(1, false, abi.encodeWithSignature("Error(string)", "work failed"));
+        vm.prank(address(keeper));
         keeper.tick();
 
         assertEq(keeper.done(), 0);
@@ -105,6 +110,7 @@ contract ScheduledKeeperTest is Test {
     function test_lateTickStillWorksAndIsAnchoredToNow() public {
         _start();
         vm.warp(keeper.nextRunAt() + 1000);
+        vm.prank(address(keeper));
         keeper.tick();
         assertEq(keeper.nextRunAt(), block.timestamp + 300);
     }
@@ -112,8 +118,10 @@ contract ScheduledKeeperTest is Test {
     function test_secondTickInSameWindowReverts() public {
         _start();
         vm.warp(keeper.nextRunAt());
+        vm.prank(address(keeper));
         keeper.tick();
         vm.expectRevert(abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__TooEarly.selector, keeper.nextRunAt()));
+        vm.prank(address(keeper));
         keeper.tick();
     }
 
@@ -187,6 +195,7 @@ contract ScheduledKeeperTest is Test {
         hb.revive();
         for (uint256 i = 0; i < 3; i++) {
             vm.warp(hb.nextRunAt());
+            vm.prank(address(hb));
             hb.tick();
         }
         assertEq(hb.beats(), 3);
