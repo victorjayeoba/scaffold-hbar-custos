@@ -1,0 +1,16 @@
+{
+  "name": "custos-eth-usd-market-commands",
+  "description": "The quality gates CI runs for the contracts and the app, plus a credential-free check of the new market's config. Nothing here needs keys or the network beyond installing packages.",
+  "requiresNoSecrets": true,
+  "forbiddenCommands": ["npm install", "npm run", "pnpm install", "pnpm run"],
+  "commands": [
+    { "name": "install", "command": "yarn install", "timeoutMs": 600000, "purpose": "Install workspace dependencies." },
+    { "name": "markets-config", "command": "yarn workspace @sh/foundry check-markets ETH-USD", "timeoutMs": 60000, "purpose": "markets.json has ETH-USD, and every market is inside the limits PriceGuard enforces." },
+    { "name": "eth-usd-test", "command": "yarn workspace @sh/foundry test --match-path test/markets/EthUsdMarket.t.sol", "timeoutMs": 600000, "purpose": "The ETH-specific test: sizing in ETH units, liquidation by the network, a profitable short." },
+    { "name": "foundry-test", "command": "yarn foundry:test", "timeoutMs": 900000, "purpose": "Every contract test and invariant, including Markets.t.sol, which cycles every market in markets.json." },
+    { "name": "foundry-lint", "command": "yarn foundry:lint", "timeoutMs": 180000, "purpose": "forge fmt and prettier checks for the contracts package." },
+    { "name": "next-check-types", "command": "yarn next:check-types", "timeoutMs": 300000, "purpose": "The app still type-checks against the contract ABIs." },
+    { "name": "next-lint", "command": "yarn next:lint --max-warnings=0", "timeoutMs": 180000, "purpose": "Lint the app." },
+    { "name": "build", "command": "yarn next:build", "timeoutMs": 600000, "purpose": "Production build of the app." }
+  ]
+}
