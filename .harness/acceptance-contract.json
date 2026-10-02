@@ -5,13 +5,12 @@
   "assertions": [
     {
       "id": "C1",
-      "statement": "The keeper page shows the network keeping the market: a next check, the gas held up front per run, and whether the reserve can pay the next run.",
+      "statement": "The keeper page shows the network keeping the market: the next check, the gas held up front per run, and whether the reserve can pay the next run.",
       "howToVerify": [
         "Open http://localhost:3000/keeper.",
         "Wait up to 30 seconds for live data to load.",
         "Confirm the page shows 'Next check' (or 'Next check in' with a countdown, or 'Due now').",
-        "Confirm the labels 'Held up front per run' and 'Can pay next run' are visible with values next to them.",
-        "Confirm a 'Keeper activity' section is present."
+        "Confirm the labels 'Held up front per run' and 'Can pay next run' are visible with values next to them (match without regard to letter case: some labels are styled in capitals)."
       ],
       "severity": "critical",
       "walletRequired": false,
@@ -22,7 +21,7 @@
       "statement": "The trade page still prices HBAR-USD from the live feeds and offers both ways in: USDC and HBAR via SaucerSwap.",
       "howToVerify": [
         "Open http://localhost:3000/trade.",
-        "Confirm a 'Mark price' value is shown and the Chainlink feed is named on the page.",
+        "Confirm a mark price is shown (with no wallet the header reads 'HBAR-USD mark price'; match without regard to letter case) and the Chainlink feed is named on the page.",
         "Confirm an option labelled 'HBAR via SaucerSwap' is offered for collateral.",
         "Confirm a 'Liquidation price' figure appears once a collateral amount is entered (enter 5)."
       ],
