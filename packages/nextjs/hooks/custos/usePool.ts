@@ -1,0 +1,131 @@
+import type { Address } from "viem";
+import { POLL } from "~~/hooks/custos/poll";
+import { useHtsToken } from "~~/hooks/custos/useHtsToken";
+import { usePoolShares } from "~~/hooks/custos/usePoolShares";
+import { usePriceFeeds } from "~~/hooks/custos/usePriceFeeds";
+import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
+
+/**
+ * Everything the Pool page reads, in one place.
+ *
+ * - The pool (ERC-4626): total assets, free assets, share price, and the connected LP's withdraw limits.
+ * - The market: open interest the pool backs and the liquidity it requires (PerpMarket keeps 2× open notional).
+ * - The two tokens: USDC (the pool's `asset()`, an HTS token) and the LP share token (see usePoolShares).
+ */
+export const usePool = (owner?: Address) => {
+  const { data: poolInfo } = useDeployedContractInfo({ contractName: "LiquidityPool" });
+
+  const totalAssets = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "totalAssets", ...POLL });
+  const freeAssets = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "freeAssets", ...POLL });
+  const { data: asset } = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "asset", ...POLL });
+
+  // Read from the market rather than the pool: the pool only forwards it, and the market's view is stable.
+  const { data: requiredLiquidity } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "requiredLiquidity",
+    ...POLL,
+  });
+  const { data: longNotional } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "longNotional",
+    ...POLL,
+  });
+  const { data: shortNotional } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "shortNotional",
+    ...POLL,
+  });
+  const { data: maxOpenInterestBps } = useScaffoldReadContract({
+    contractName: "PerpMarket",
+    functionName: "MAX_OPEN_INTEREST_BPS",
+    ...POLL,
+  });
+
+  const shares = usePoolShares(owner);
+  const usdc = useHtsToken({ token: asset, owner, spender: poolInfo?.address });
+  // USDC the pool holds. Equal to totalAssets on the ERC-4626 pool; on the HTS-share pool totalAssets also nets
+  // traders' open gains, so the cash balance is read separately.
+  const { balance: usdcHeld } = useHtsToken({
+    token: asset,
+    owner: poolInfo?.address,
+    spender: poolInfo?.address,
+    checkAssociation: false,
+  });
+
+  // One whole share, in share units (12 decimals today: 6 for USDC plus the pool's 6-decimal virtual offset).
+  const oneShare = shares.decimals !== undefined ? 10n ** BigInt(shares.decimals) : undefined;
+  const { data: sharePrice } = useScaffoldReadContract({
+    contractName: "LiquidityPool",
+    functionName: "convertToAssets",
+    args: [oneShare],
+    ...POLL,
+  });
+
+  const { data: myValue } = useScaffoldReadContract({
+    contractName: "LiquidityPool",
+    functionName: "convertToAssets",
+    args: [shares.balance],
+    ...POLL,
+  });
+  const { data: maxWithdraw, refetch: refetchMaxWithdraw } = useScaffoldReadContract({
+    contractName: "LiquidityPool",
+    functionName: "maxWithdraw",
+    args: [owner],
+    ...POLL,
+  });
+  const { data: maxRedeem, refetch: refetchMaxRedeem } = useScaffoldReadContract({
+    contractName: "LiquidityPool",
+    functionName: "maxRedeem",
+    args: [owner],
+    ...POLL,
+  });
+
+  const openInterest =
+    longNotional !== undefined && shortNotional !== undefined ? longNotional + shortNotional : undefined;
+
+  // The HTS-share pool refuses deposits and withdrawals without an Ok price while positions are open
+  // (LiquidityPool__NoPrice). The ERC-4626 pool has no such pause.
+  const { status: priceStatus } = usePriceFeeds();
+  const paused =
+    shares.separateToken &&
+    (priceStatus === "stale" || priceStatus === "deviated") &&
+    openInterest !== undefined &&
+    openInterest > 0n;
+
+  const refetch = async () => {
+    await Promise.all([
+      totalAssets.refetch(),
+      freeAssets.refetch(),
+      refetchMaxWithdraw(),
+      refetchMaxRedeem(),
+      shares.refetch(),
+      usdc.refetch(),
+    ]);
+  };
+
+  return {
+    poolAddress: poolInfo?.address,
+    totalAssets: totalAssets.data,
+    freeAssets: freeAssets.data,
+    usdcHeld,
+    paused,
+    requiredLiquidity,
+    openInterest,
+    longNotional,
+    shortNotional,
+    maxOpenInterestBps,
+    sharePrice,
+    loaded: totalAssets.data !== undefined && freeAssets.data !== undefined,
+    error: totalAssets.error ?? freeAssets.error,
+    usdc,
+    shares,
+    me: {
+      value: myValue,
+      maxWithdraw,
+      maxRedeem,
+    },
+    refetch,
+  };
+};
+
+export type PoolState = ReturnType<typeof usePool>;
