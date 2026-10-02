@@ -1,0 +1,10 @@
+{
+  "HBAR-USD": {
+    "chainlink": "0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a",
+    "supra": "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917",
+    "supraPair": 75,
+    "maxStaleness": 7200,
+    "maxDeviationBps": 500,
+    "refPrice8": 12000000
+  }
+}

@@ -7,6 +7,13 @@
 //   yarn custos:demo:testnet     swap HBAR to USDC on SaucerSwap and seed the pool, then open a 50x long with
 //                                HBAR alone (openWithHbar) that a ~1% drop liquidates
 //   yarn custos:revive:testnet   restart the keeper if its chain broke
+//   yarn custos:check-market:testnet --market <NAME>
+//                                deploy only a PriceGuard for that market and read both live feeds; exits 1 if
+//                                either feed doesn't answer (the quickest way to vet a new market's config)
+//
+// Markets live in markets.json (Chainlink feed, Supra pair, staleness, deviation). --market <NAME> picks one for
+// deploy/start/demo/revive/check-market; the default is HBAR-USD, which is what the frontend reads. Any other
+// market's addresses go to deployments/296-<name>.json and leave the frontend's deployedContracts.ts alone.
 //
 // Signer: --keystore <name> (or ETH_KEYSTORE_ACCOUNT; cast reads ETH_PASSWORD if set, else prompts),
 //         or DEPLOYER_PRIVATE_KEY in the environment (never write it into a file).
@@ -30,15 +37,21 @@ import { listKeystores } from "./listKeystores.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const RPC = process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
-const CHAINLINK_HBAR_USD = "0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a";
-const SUPRA = "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917";
-const SUPRA_HBAR_USDT = "75";
+const MARKETS = JSON.parse(readFileSync(join(ROOT, "markets.json"), "utf8"));
+const DEFAULT_MARKET = "HBAR-USD";
 // SaucerSwap testnet: the USDC its pools trade (0.0.5449), the V1 router (0.0.19264) and the WHBAR token (0.0.15058).
 // On mainnet: Circle USDC 0.0.456858, router 0.0.3045981, WHBAR 0.0.1456986.
 const USDC = "0x0000000000000000000000000000000000001549";
 const ROUTER = "0x0000000000000000000000000000000000004b40";
 const WHBAR = "0x0000000000000000000000000000000000003aD2";
-const DEPLOYMENTS = join(ROOT, "deployments", "296.json");
+const marketFlag = process.argv.indexOf("--market");
+const MARKET = marketFlag >= 0 ? process.argv[marketFlag + 1] : DEFAULT_MARKET;
+const IS_DEFAULT_MARKET = MARKET === DEFAULT_MARKET;
+const DEPLOYMENTS = join(
+  ROOT,
+  "deployments",
+  IS_DEFAULT_MARKET ? "296.json" : `296-${MARKET.toLowerCase()}.json`
+);
 const shell = process.platform === "win32";
 
 const [, , command, ...rest] = process.argv;
@@ -119,12 +132,14 @@ function deployed() {
   return byName;
 }
 
-/// Writes deployments/296.json and a broadcast record in forge's format, then regenerates the ABIs.
+/// Writes the deployments file. For the default market it also writes a broadcast record in forge's format and
+/// regenerates the frontend's ABIs.
 function record(contracts) {
   mkdirSync(dirname(DEPLOYMENTS), { recursive: true });
-  const json = { networkName: "hedera_testnet" };
+  const json = { networkName: "hedera_testnet", market: MARKET };
   for (const c of contracts) json[c.address] = c.name;
   writeFileSync(DEPLOYMENTS, JSON.stringify(json, null, 2) + "\n");
+  if (!IS_DEFAULT_MARKET) return;
 
   const dir = join(ROOT, "broadcast", "Deploy.s.sol", "296");
   mkdirSync(dir, { recursive: true });
@@ -142,12 +157,20 @@ function record(contracts) {
 }
 
 async function main() {
-  if (!["deploy", "start", "demo", "revive"].includes(command)) {
+  if (!["deploy", "start", "demo", "revive", "check-market"].includes(command)) {
     console.log(
-      "Usage: node scripts-js/custos.js <deploy|start|demo|revive> [--keystore <name>]"
+      "Usage: node scripts-js/custos.js <deploy|start|demo|revive|check-market> [--market <NAME>] [--keystore <name>]"
     );
     process.exit(1);
   }
+  const m = MARKETS[MARKET];
+  if (!m) {
+    console.error(`❌ No market "${MARKET}" in markets.json. Known: ${Object.keys(MARKETS).join(", ")}`); // prettier-ignore
+    process.exit(1);
+  }
+  const guardArgs = (owner) => [
+    m.chainlink, m.supra, String(m.supraPair), String(m.maxStaleness), String(m.maxDeviationBps), owner,
+  ]; // prettier-ignore
   if (!process.env.DEPLOYER_PRIVATE_KEY && !keystore) {
     keystore = await listKeystores("Select the keystore to send from: ");
   }
@@ -162,9 +185,8 @@ async function main() {
     const maxSwapDeviation = process.env.MAX_SWAP_DEVIATION_BPS || "300";
     const shareTokenFee = process.env.SHARE_TOKEN_FEE || "30";
     run("Compile", "forge", ["build"]);
-    const guard = create("PriceGuard", [
-      CHAINLINK_HBAR_USD, SUPRA, SUPRA_HBAR_USDT, "7200", "500", owner,
-    ]); // prettier-ignore
+    console.log(`\nMarket: ${MARKET}`);
+    const guard = create("PriceGuard", guardArgs(owner));
     const pool = create("LiquidityPool", [USDC, owner]);
     const market = create("PerpMarket", [
       USDC, guard.address, pool.address, owner, interval, gasLimit, gasPrice, ROUTER, WHBAR, minCollateral,
@@ -175,6 +197,22 @@ async function main() {
     send("Fund the keeper's fee reserve", market.address, "fund()", [], 100_000, `${fund}ether`); // prettier-ignore
     record([guard, pool, market]);
     console.log("\nNext: yarn custos:start:testnet");
+  }
+
+  if (command === "check-market") {
+    run("Compile", "forge", ["build"]);
+    const guard = create("PriceGuard", guardArgs(deployer()));
+    const out = run("Read both feeds", "cast", ["call", guard.address, "prices()(uint256,uint256,uint8)", "--rpc-url", RPC], true); // prettier-ignore
+    const [chainlinkPrice, supraPrice, status] = out.trim().split("\n").map((l) => l.trim().split(" ")[0]); // prettier-ignore
+    const names = ["Ok", "Stale", "Deviated"];
+    console.log(`\n${MARKET}: Chainlink ${Number(chainlinkPrice) / 1e18}, Supra ${Number(supraPrice) / 1e18}, status ${names[Number(status)]}`); // prettier-ignore
+    console.log(`PriceGuard: https://hashscan.io/testnet/contract/${guard.address}`);
+    if (chainlinkPrice === "0" || supraPrice === "0") {
+      console.error("❌ A feed did not answer: check the Chainlink address and the Supra pair in markets.json"); // prettier-ignore
+      process.exit(1);
+    }
+    console.log("✅ Both feeds answer");
+    return;
   }
 
   const { PerpMarket: market, LiquidityPool: pool } = deployed();
