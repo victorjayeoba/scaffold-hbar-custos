@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     PriceGuard: {
-      address: "0x79e2d3560370b8715EcE80fd5bB42ab50DC880b4",
+      address: "0x293e90142cc9dDF603d9Ab405B43236e8077EF75",
       abi: [
         {
           type: "constructor",
@@ -349,7 +349,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     LiquidityPool: {
-      address: "0x50fe2f68cb4527cAFd37f5dD8B5B77EF2CFB4f27",
+      address: "0x06061a60D2f9E99410F1D2B310DCF51A1ff2A3b1",
       abi: [
         {
           type: "constructor",
@@ -1129,7 +1129,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     PerpMarket: {
-      address: "0x4fAC9239323BBA3965Ef15B695F3fbB979A514Ff",
+      address: "0xb79Cc40A4b1d3C135f71Ed6dc4e9a231cC369b67",
       abi: [
         {
           type: "constructor",
