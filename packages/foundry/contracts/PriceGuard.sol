@@ -108,7 +108,9 @@ contract PriceGuard is Ownable {
         view
         returns (Status)
     {
-        if (chainlinkPrice == 0 || supraPrice == 0 || _isStale(chainlinkAt) || _isStale(supraAt)) return Status.Stale;
+        if (chainlinkPrice == 0 || supraPrice == 0 || _isStale(chainlinkAt) || _isStale(supraAt)) {
+            return Status.Stale;
+        }
         if (_deviationBps(chainlinkPrice, supraPrice) > maxDeviationBps) return Status.Deviated;
         return Status.Ok;
     }

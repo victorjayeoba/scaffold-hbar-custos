@@ -62,7 +62,9 @@ contract PerpMarketFuzzTest is CustosBase {
 
     function _usdcTotal(address[] memory who) internal view returns (uint256 t) {
         t = usdc.balanceOf(address(pool)) + usdc.balanceOf(address(market)) + usdc.balanceOf(address(router));
-        for (uint256 i = 0; i < who.length; i++) t += usdc.balanceOf(who[i]);
+        for (uint256 i = 0; i < who.length; i++) {
+            t += usdc.balanceOf(who[i]);
+        }
     }
 
     function _trader(uint256 i) internal returns (address t) {
@@ -178,13 +180,9 @@ contract PerpMarketFuzzTest is CustosBase {
                               LIQUIDATION
     //////////////////////////////////////////////////////////////*/
 
-    function testFuzz_isLiquidatableAtLiquidationPrice(
-        bool isLong,
-        uint256 c,
-        uint256 lev,
-        uint256 price8,
-        uint256 dt
-    ) public {
+    function testFuzz_isLiquidatableAtLiquidationPrice(bool isLong, uint256 c, uint256 lev, uint256 price8, uint256 dt)
+        public
+    {
         (c, lev) = _bounds(c, lev, 1, CAP);
         price8 = bound(price8, 1e6, 1e9);
         dt = bound(dt, 0, 7 days);

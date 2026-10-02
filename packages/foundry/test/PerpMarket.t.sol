@@ -355,7 +355,17 @@ contract PerpMarketTest is CustosBase {
         market.openWithHbar(true, 10, 0);
 
         PerpMarket noSwap = new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 50, address(0), address(0), 1e6, 9_500
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            50,
+            address(0),
+            address(0),
+            1e6,
+            9_500
         );
         vm.deal(alice, 1e8);
         vm.prank(alice);
@@ -411,10 +421,10 @@ contract PerpMarketTest is CustosBase {
         if (free == 0) {
             vm.expectRevert(PerpMarket.PerpMarket__NothingToSpend.selector);
             vm.prank(address(market));
-        market.refuel();
+            market.refuel();
         } else {
             vm.prank(address(market));
-        market.refuel();
+            market.refuel();
         }
         assertGe(pool.totalAssets(), pool.requiredLiquidity());
     }
@@ -523,11 +533,31 @@ contract PerpMarketTest is CustosBase {
     function test_constructorRejectsZeroAddresses() public {
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector);
         new PerpMarket(
-            address(0), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 1e6, 9_500
+            address(0),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            0,
+            address(0),
+            address(0),
+            1e6,
+            9_500
         );
         vm.expectRevert(PerpMarket.PerpMarket__InvalidAddress.selector); // router without WHBAR
         new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(router), address(0), 1e6, 9_500
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            0,
+            address(router),
+            address(0),
+            1e6,
+            9_500
         );
     }
 
@@ -580,11 +610,31 @@ contract PerpMarketTest is CustosBase {
     function test_constructorRejectsBadConfig() public {
         vm.expectRevert(PerpMarket.PerpMarket__InvalidConfig.selector);
         new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 0, 100
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            0,
+            address(0),
+            address(0),
+            0,
+            100
         );
         vm.expectRevert(PerpMarket.PerpMarket__InvalidConfig.selector);
         new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 0, address(0), address(0), 1, 10_000
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            0,
+            address(0),
+            address(0),
+            1,
+            10_000
         );
     }
 
@@ -695,7 +745,17 @@ contract PerpMarketTest is CustosBase {
 
     function test_closeToHbarDisabledWithoutRouter() public {
         PerpMarket noSwap = new PerpMarket(
-            address(usdc), address(guard), address(pool), address(this), 300, 2_000_000, 50, address(0), address(0), 1e6, 9_500
+            address(usdc),
+            address(guard),
+            address(pool),
+            address(this),
+            300,
+            2_000_000,
+            50,
+            address(0),
+            address(0),
+            1e6,
+            9_500
         );
         vm.expectRevert(PerpMarket.PerpMarket__SwapDisabled.selector);
         noSwap.closeToHbar(0);
@@ -746,7 +806,17 @@ contract PerpMarketTest is CustosBase {
     function test_tightBandRefusesAMispricedSaucerSwapAndSparesTheLps() public {
         LiquidityPool tightPool = new LiquidityPool(usdc, address(this));
         PerpMarket tight = new PerpMarket(
-            address(usdc), address(guard), address(tightPool), address(this), 300, 2_500_000, 40, address(router), WHBAR, 1e6, 300
+            address(usdc),
+            address(guard),
+            address(tightPool),
+            address(this),
+            300,
+            2_500_000,
+            40,
+            address(router),
+            WHBAR,
+            1e6,
+            300
         );
         tightPool.setMarket(address(tight));
         tightPool.createShareToken{ value: 1e8 }();

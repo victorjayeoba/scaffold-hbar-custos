@@ -72,7 +72,16 @@ contract DeployScript is ScaffoldETHDeploy {
     function _deployMarket(Config memory c, address usdc, address guard, address router) internal {
         LiquidityPool pool = new LiquidityPool(IERC20(usdc), deployer);
         PerpMarket market = new PerpMarket(
-            usdc, guard, address(pool), deployer, c.interval, c.gasLimit, c.runCost, router, WHBAR, c.minCollateral,
+            usdc,
+            guard,
+            address(pool),
+            deployer,
+            c.interval,
+            c.gasLimit,
+            c.runCost,
+            router,
+            WHBAR,
+            c.minCollateral,
             c.maxSwapDeviation
         );
         pool.setMarket(address(market));
@@ -91,8 +100,7 @@ contract DeployScript is ScaffoldETHDeploy {
 
     function _setCode(address where, bytes memory code) internal {
         vm.etch(where, code);
-        string memory params =
-            string.concat('["', vm.toString(where), '","', vm.toString(code), '"]');
+        string memory params = string.concat('["', vm.toString(where), '","', vm.toString(code), '"]');
         vm.rpc("anvil_setCode", params);
     }
 }

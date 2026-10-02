@@ -179,9 +179,7 @@ abstract contract MarginAccount {
     }
 
     /// @dev Adds a position to (or removes it from) the running sums.
-    function _track(int256 size, uint256 collateral, uint256 price, uint256 notional, int256 index, bool add)
-        private
-    {
+    function _track(int256 size, uint256 collateral, uint256 price, uint256 notional, int256 index, bool add) private {
         int256 signedNotional = size > 0 ? int256(notional) : -int256(notional);
         int256 sizeEntry = size * int256(price);
         int256 notionalIndex = signedNotional * index;

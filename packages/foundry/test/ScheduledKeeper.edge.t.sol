@@ -285,7 +285,9 @@ contract ScheduledKeeperEdgeTest is Test {
         k.revive();
         vm.warp(k.nextRunAt());
         vm.expectEmit(true, false, false, true, address(k));
-        emit ScheduledKeeper.Ticked(1, false, abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__Reentrant.selector));
+        emit ScheduledKeeper.Ticked(
+            1, false, abi.encodeWithSelector(ScheduledKeeper.ScheduledKeeper__Reentrant.selector)
+        );
         _netTick(k);
         assertEq(k.runCount(), 1);
         assertEq(k.nextRunAt(), block.timestamp + 300);

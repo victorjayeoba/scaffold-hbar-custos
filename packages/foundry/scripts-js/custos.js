@@ -157,7 +157,9 @@ function record(contracts) {
 }
 
 async function main() {
-  if (!["deploy", "start", "demo", "revive", "check-market"].includes(command)) {
+  if (
+    !["deploy", "start", "demo", "revive", "check-market"].includes(command)
+  ) {
     console.log(
       "Usage: node scripts-js/custos.js <deploy|start|demo|revive|check-market> [--market <NAME>] [--keystore <name>]"
     );
@@ -206,7 +208,9 @@ async function main() {
     const [chainlinkPrice, supraPrice, status] = out.trim().split("\n").map((l) => l.trim().split(" ")[0]); // prettier-ignore
     const names = ["Ok", "Stale", "Deviated"];
     console.log(`\n${MARKET}: Chainlink ${Number(chainlinkPrice) / 1e18}, Supra ${Number(supraPrice) / 1e18}, status ${names[Number(status)]}`); // prettier-ignore
-    console.log(`PriceGuard: https://hashscan.io/testnet/contract/${guard.address}`);
+    console.log(
+      `PriceGuard: https://hashscan.io/testnet/contract/${guard.address}`
+    );
     if (chainlinkPrice === "0" || supraPrice === "0") {
       console.error("❌ A feed did not answer: check the Chainlink address and the Supra pair in markets.json"); // prettier-ignore
       process.exit(1);

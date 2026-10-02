@@ -110,8 +110,17 @@ contract MarketsTest is Test {
         s.guard = new PriceGuard(address(s.chainlink), address(s.supra), 1, staleness, deviation, address(this));
         s.pool = new LiquidityPool(s.usdc, address(this));
         s.market = new PerpMarket(
-            address(s.usdc), address(s.guard), address(s.pool), address(this), 300, 2_500_000, 40, address(0),
-            address(0), 1e6, 300
+            address(s.usdc),
+            address(s.guard),
+            address(s.pool),
+            address(this),
+            300,
+            2_500_000,
+            40,
+            address(0),
+            address(0),
+            1e6,
+            300
         );
         vm.deal(address(s.market), 100e8);
         s.pool.setMarket(address(s.market));
