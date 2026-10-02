@@ -4,7 +4,14 @@ import React, { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bars3Icon, BugAntIcon, HomeIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowsRightLeftIcon,
+  BanknotesIcon,
+  Bars3Icon,
+  BugAntIcon,
+  ClockIcon,
+  HomeIcon,
+} from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-hbar";
 import { useOutsideClick } from "~~/hooks/scaffold-hbar";
 
@@ -19,6 +26,21 @@ export const menuLinks: HeaderMenuLink[] = [
     label: "Home",
     href: "/",
     icon: <HomeIcon className="h-4 w-4" />,
+  },
+  {
+    label: "Trade",
+    href: "/trade",
+    icon: <ArrowsRightLeftIcon className="h-4 w-4" />,
+  },
+  {
+    label: "Pool",
+    href: "/pool",
+    icon: <BanknotesIcon className="h-4 w-4" />,
+  },
+  {
+    label: "Keeper",
+    href: "/keeper",
+    icon: <ClockIcon className="h-4 w-4" />,
   },
   {
     label: "Debug Contracts",

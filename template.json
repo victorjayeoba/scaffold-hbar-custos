@@ -1,6 +1,6 @@
 {
-  "name": "payments-scheduler",
-  "description": "HTS payments scheduler template with Foundry contracts.",
+  "name": "scaffold-hbar-custos",
+  "description": "A margin engine the Hedera network keeps: an HBAR-USD perpetual exchange whose liquidations and funding are run by the Hedera Schedule Service (HIP-1215), priced by Chainlink, cross-checked by Supra, with SaucerSwap for HBAR deposits and a self-funding keeper.",
   "create-scaffold-hbar": {
     "capabilities": {
       "frontend": [
@@ -19,43 +19,60 @@
         {
           "steps": [
             {
-              "text": "This template uses Hedera Schedule Service, which is not yet available in Foundry Hedera forking, so run it on Hedera testnet or mainnet (not on a local chain or forked Hedera network)."
+              "text": "The keeper runs on Hedera Schedule Service, which local chains and Foundry forks don't have. Unit tests use a mock; the live market runs on Hedera testnet."
             }
           ]
         },
         {
-          "title": "Suggested steps",
+          "title": "Test it locally",
+          "steps": [
+            {
+              "label": "Compile the contracts",
+              "command": "{run:foundry:compile}"
+            },
+            {
+              "label": "Run the unit and invariant tests",
+              "command": "{run:foundry:test}"
+            }
+          ]
+        },
+        {
+          "title": "Run your own market on testnet",
           "steps": [
             {
               "label": "Generate or import a deployer account",
               "command": "{run:foundry:account:generate}"
             },
             {
-              "label": "Fund the account with testnet HBAR before deploying",
+              "label": "Fund it with testnet HBAR (deploy puts 40 HBAR in the keeper reserve by default; the demo swaps 50 more)",
               "url": "https://portal.hedera.com/faucet"
             },
             {
-              "label": "Compile contracts",
-              "command": "{run:foundry:compile}"
+              "label": "Deploy PriceGuard, LiquidityPool and PerpMarket, and fund the keeper",
+              "command": "{run:custos:deploy:testnet}"
             },
             {
-              "label": "Run tests",
-              "command": "{run:foundry:test}"
+              "label": "Book the keeper's first tick: from here the network runs it",
+              "command": "{run:custos:start:testnet}"
             },
             {
-              "label": "Deploy to Hedera testnet",
-              "command": "{run:foundry:deploy:testnet}"
-            },
+              "label": "Optional: seed the pool and open a 50x position that a small move liquidates",
+              "command": "{run:custos:demo:testnet}"
+            }
+          ]
+        },
+        {
+          "title": "Watch the network keep the books",
+          "steps": [
             {
-              "label": "Verify on Hashscan testnet",
-              "command": "{run:foundry:verify:testnet}"
-            },
-            {
-              "label": "Start the frontend",
+              "label": "Start the app",
               "command": "{run:next:dev}"
             },
             {
-              "text": "After this, customize anything you want in contracts or frontend to fit your product."
+              "url": "http://localhost:3000/keeper"
+            },
+            {
+              "text": "Read AGENTS.md before extending it: adding a market, reusing the engine for lending, or adding a new keeper job."
             }
           ]
         }
