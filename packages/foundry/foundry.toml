@@ -8,6 +8,8 @@ fs_permissions = [
 ]
 ffi = true
 evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
 
 [invariant]
 runs = 256

@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     PriceGuard: {
-      address: "0xEccd61b4E626f0cbDf33dC22d010e875562070b3",
+      address: "0x79e2d3560370b8715EcE80fd5bB42ab50DC880b4",
       abi: [
         {
           type: "constructor",
@@ -44,6 +44,32 @@ const deployedContracts = {
             },
           ],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "MAX_DEVIATION_LIMIT_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "MAX_STALENESS_LIMIT",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -106,6 +132,29 @@ const deployedContracts = {
               name: "",
               type: "uint256",
               internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "prices",
+          inputs: [],
+          outputs: [
+            {
+              name: "chainlinkPrice",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "supraPrice",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "status_",
+              type: "uint8",
+              internalType: "enum PriceGuard.Status",
             },
           ],
           stateMutability: "view",
@@ -300,7 +349,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     LiquidityPool: {
-      address: "0x3B3F8fbfc533b9707A7d83Cb25c8E81bE5238e70",
+      address: "0x50fe2f68cb4527cAFd37f5dD8B5B77EF2CFB4f27",
       abi: [
         {
           type: "constructor",
@@ -320,19 +369,8 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "allowance",
-          inputs: [
-            {
-              name: "owner",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "spender",
-              type: "address",
-              internalType: "address",
-            },
-          ],
+          name: "DEAD_SHARES",
+          inputs: [],
           outputs: [
             {
               name: "",
@@ -344,27 +382,29 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "approve",
-          inputs: [
-            {
-              name: "spender",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "value",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
+          name: "SHARE_AUTO_RENEW_PERIOD",
+          inputs: [],
           outputs: [
             {
               name: "",
-              type: "bool",
-              internalType: "bool",
+              type: "int64",
+              internalType: "int64",
             },
           ],
-          stateMutability: "nonpayable",
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "SHARE_DECIMALS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "int32",
+              internalType: "int32",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -451,16 +491,10 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "decimals",
+          name: "createShareToken",
           inputs: [],
-          outputs: [
-            {
-              name: "",
-              type: "uint8",
-              internalType: "uint8",
-            },
-          ],
-          stateMutability: "view",
+          outputs: [],
+          stateMutability: "payable",
         },
         {
           type: "function",
@@ -479,7 +513,7 @@ const deployedContracts = {
           ],
           outputs: [
             {
-              name: "",
+              name: "shares",
               type: "uint256",
               internalType: "uint256",
             },
@@ -508,44 +542,6 @@ const deployedContracts = {
               name: "",
               type: "address",
               internalType: "address",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "maxDeposit",
-          inputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "maxMint",
-          inputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
             },
           ],
           stateMutability: "view",
@@ -584,43 +580,6 @@ const deployedContracts = {
               name: "",
               type: "uint256",
               internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "mint",
-          inputs: [
-            {
-              name: "shares",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "receiver",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "name",
-          inputs: [],
-          outputs: [
-            {
-              name: "",
-              type: "string",
-              internalType: "string",
             },
           ],
           stateMutability: "view",
@@ -681,26 +640,7 @@ const deployedContracts = {
           ],
           outputs: [
             {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "previewMint",
-          inputs: [
-            {
               name: "shares",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
               type: "uint256",
               internalType: "uint256",
             },
@@ -759,15 +699,10 @@ const deployedContracts = {
               type: "address",
               internalType: "address",
             },
-            {
-              name: "owner",
-              type: "address",
-              internalType: "address",
-            },
           ],
           outputs: [
             {
-              name: "",
+              name: "assets",
               type: "uint256",
               internalType: "uint256",
             },
@@ -809,13 +744,13 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "symbol",
+          name: "shareToken",
           inputs: [],
           outputs: [
             {
               name: "",
-              type: "string",
-              internalType: "string",
+              type: "address",
+              internalType: "address",
             },
           ],
           stateMutability: "view",
@@ -848,59 +783,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "transfer",
-          inputs: [
-            {
-              name: "to",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "value",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "bool",
-              internalType: "bool",
-            },
-          ],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "transferFrom",
-          inputs: [
-            {
-              name: "from",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "to",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "value",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "bool",
-              internalType: "bool",
-            },
-          ],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
           name: "transferOwnership",
           inputs: [
             {
@@ -926,45 +808,15 @@ const deployedContracts = {
               type: "address",
               internalType: "address",
             },
-            {
-              name: "owner",
-              type: "address",
-              internalType: "address",
-            },
           ],
           outputs: [
             {
-              name: "",
+              name: "shares",
               type: "uint256",
               internalType: "uint256",
             },
           ],
           stateMutability: "nonpayable",
-        },
-        {
-          type: "event",
-          name: "Approval",
-          inputs: [
-            {
-              name: "owner",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "spender",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "value",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-          ],
-          anonymous: false,
         },
         {
           type: "event",
@@ -996,7 +848,7 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "owner",
+              name: "receiver",
               type: "address",
               indexed: true,
               internalType: "address",
@@ -1063,6 +915,19 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "ShareTokenCreated",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "TraderPaid",
           inputs: [
             {
@@ -1073,31 +938,6 @@ const deployedContracts = {
             },
             {
               name: "amount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "Transfer",
-          inputs: [
-            {
-              name: "from",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "to",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "value",
               type: "uint256",
               indexed: false,
               internalType: "uint256",
@@ -1122,12 +962,6 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "owner",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
               name: "assets",
               type: "uint256",
               indexed: false,
@@ -1144,182 +978,34 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "ERC20InsufficientAllowance",
-          inputs: [
-            {
-              name: "spender",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "allowance",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "needed",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC20InsufficientBalance",
-          inputs: [
-            {
-              name: "sender",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "balance",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "needed",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC20InvalidApprover",
-          inputs: [
-            {
-              name: "approver",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC20InvalidReceiver",
-          inputs: [
-            {
-              name: "receiver",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC20InvalidSender",
-          inputs: [
-            {
-              name: "sender",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC20InvalidSpender",
-          inputs: [
-            {
-              name: "spender",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC4626ExceededMaxDeposit",
-          inputs: [
-            {
-              name: "receiver",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "assets",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "max",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC4626ExceededMaxMint",
-          inputs: [
-            {
-              name: "receiver",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "shares",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "max",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC4626ExceededMaxRedeem",
-          inputs: [
-            {
-              name: "owner",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "shares",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "max",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
-          name: "ERC4626ExceededMaxWithdraw",
-          inputs: [
-            {
-              name: "owner",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "assets",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "max",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-        },
-        {
-          type: "error",
           name: "LiquidityPool__ExceedsFreeAssets",
           inputs: [
             {
               name: "free",
               type: "uint256",
               internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__ExceedsMax",
+          inputs: [
+            {
+              name: "max",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__HtsFailed",
+          inputs: [
+            {
+              name: "responseCode",
+              type: "int64",
+              internalType: "int64",
             },
           ],
         },
@@ -1335,7 +1021,43 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "LiquidityPool__NoPrice",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__NoShareToken",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "LiquidityPool__OnlyMarket",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__RefundFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__ShareTokenExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__TooFewShares",
+          inputs: [
+            {
+              name: "shares",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "LiquidityPool__ZeroAmount",
           inputs: [],
         },
         {
@@ -1362,6 +1084,38 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SafeCastOverflowedIntDowncast",
+          inputs: [
+            {
+              name: "bits",
+              type: "uint8",
+              internalType: "uint8",
+            },
+            {
+              name: "value",
+              type: "int256",
+              internalType: "int256",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "SafeCastOverflowedUintToInt",
+          inputs: [
+            {
+              name: "value",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
           name: "SafeERC20FailedOperation",
           inputs: [
             {
@@ -1375,7 +1129,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     PerpMarket: {
-      address: "0xDF65b7Ea6Ac7895b5EF84a8F2b37302F625c87Df",
+      address: "0x4fAC9239323BBA3965Ef15B695F3fbB979A514Ff",
       abi: [
         {
           type: "constructor",
@@ -1411,7 +1165,7 @@ const deployedContracts = {
               internalType: "uint256",
             },
             {
-              name: "runCostEstimate_",
+              name: "gasPrice_",
               type: "uint256",
               internalType: "uint256",
             },
@@ -1424,6 +1178,16 @@ const deployedContracts = {
               name: "whbar_",
               type: "address",
               internalType: "address",
+            },
+            {
+              name: "minCollateral_",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "maxSwapDeviationBps_",
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           stateMutability: "nonpayable",
@@ -1487,6 +1251,19 @@ const deployedContracts = {
         {
           type: "function",
           name: "MAINTENANCE_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "MAX_GAS_PRICE",
           inputs: [],
           outputs: [
             {
@@ -1655,6 +1432,13 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "accrueFunding",
+          inputs: [],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "addCollateral",
           inputs: [
             {
@@ -1681,9 +1465,60 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "canPayNextRun",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "close",
           inputs: [],
           outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "closePrice",
+          inputs: [
+            {
+              name: "trader",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "closeToHbar",
+          inputs: [
+            {
+              name: "minHbarOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "hbarOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
@@ -1791,6 +1626,19 @@ const deployedContracts = {
         {
           type: "function",
           name: "gasLimit",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "gasPrice",
           inputs: [],
           outputs: [
             {
@@ -1930,6 +1778,51 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "maxSwapDeviationBps",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "minCollateral",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "netTraderGain",
+          inputs: [
+            {
+              name: "price",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "gain",
+              type: "int256",
+              internalType: "int256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "nextRunAt",
           inputs: [],
           outputs: [
@@ -1992,7 +1885,7 @@ const deployedContracts = {
               internalType: "uint256",
             },
             {
-              name: "minCollateral",
+              name: "minCollateral_",
               type: "uint256",
               internalType: "uint256",
             },
@@ -2122,6 +2015,25 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "quoteUsdcToHbar",
+          inputs: [
+            {
+              name: "usdcAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "refuel",
           inputs: [],
           outputs: [
@@ -2221,10 +2133,10 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setRunCostEstimate",
+          name: "setGasPrice",
           inputs: [
             {
-              name: "tinybars",
+              name: "tinybarsPerGas",
               type: "uint256",
               internalType: "uint256",
             },
@@ -2254,6 +2166,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "totalCollateral",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "totalOpenNotional",
           inputs: [],
           outputs: [
@@ -2274,6 +2199,24 @@ const deployedContracts = {
               name: "",
               type: "uint256",
               internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "traderGainForPool",
+          inputs: [],
+          outputs: [
+            {
+              name: "gain",
+              type: "int256",
+              internalType: "int256",
+            },
+            {
+              name: "ok",
+              type: "bool",
+              internalType: "bool",
             },
           ],
           stateMutability: "view",
@@ -2451,6 +2394,19 @@ const deployedContracts = {
               type: "int256",
               indexed: false,
               internalType: "int256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "GasPriceSet",
+          inputs: [
+            {
+              name: "tinybarsPerGas",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
             },
           ],
           anonymous: false,
@@ -2657,6 +2613,31 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "SwappedPayoutForHbar",
+          inputs: [
+            {
+              name: "trader",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "usdcIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "hbarOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "SweepSkipped",
           inputs: [
             {
@@ -2761,6 +2742,17 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "PerpMarket__BelowMinCollateral",
+          inputs: [
+            {
+              name: "minCollateral",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
           name: "PerpMarket__HoldTime",
           inputs: [
             {
@@ -2773,6 +2765,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "PerpMarket__InvalidAddress",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "PerpMarket__InvalidConfig",
           inputs: [],
         },
         {
@@ -2798,6 +2795,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "PerpMarket__NothingToSpend",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "PerpMarket__OnlyKeeper",
           inputs: [],
         },
         {
@@ -2868,6 +2870,11 @@ const deployedContracts = {
               internalType: "uint256",
             },
           ],
+        },
+        {
+          type: "error",
+          name: "ScheduledKeeper__OnlyNetwork",
+          inputs: [],
         },
         {
           type: "error",

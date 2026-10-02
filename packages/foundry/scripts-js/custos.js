@@ -10,9 +10,15 @@
 //
 // Signer: --keystore <name> (or ETH_KEYSTORE_ACCOUNT; cast reads ETH_PASSWORD if set, else prompts),
 //         or DEPLOYER_PRIVATE_KEY in the environment (never write it into a file).
-// Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 6000000),
-//                  KEEPER_RUN_COST tinybars (default 165000000), KEEPER_FUND HBAR (default 40).
-// Demo (HBAR): DEMO_POOL_HBAR swapped to USDC for the pool (default 50), DEMO_TRADE_HBAR per position (default 0.2).
+// Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 3000000),
+//                  KEEPER_GAS_PRICE tinybars per gas (default 82; each network tick then records the real one),
+//                  KEEPER_FUND HBAR (default 60). Hedera holds a run's whole gas limit up front, so one run needs
+//                  KEEPER_GAS_LIMIT x gas price in the reserve: 3,000,000 x 82 tinybars = 2.46 HBAR.
+// Market (deploy): MIN_COLLATERAL USDC units (default 1000000 = 1 USDC), MAX_SWAP_DEVIATION_BPS (default 9900:
+//                  SaucerSwap testnet's USDC pool trades ~20x off the oracle price; use ~300 on mainnet),
+//                  SHARE_TOKEN_FEE HBAR sent to create the HTS LP token (default 30; the unused part comes back).
+// Demo (HBAR): DEMO_POOL_HBAR swapped to USDC for the pool (default 120), DEMO_TRADE_HBAR per position (default 1).
+//              A 50x position needs the pool to hold twice its notional (open interest is capped at half the pool).
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -147,18 +153,23 @@ async function main() {
   if (command === "deploy") {
     const owner = deployer();
     const interval = process.env.KEEPER_INTERVAL || "1800";
-    const gasLimit = process.env.KEEPER_GAS_LIMIT || "6000000";
-    const runCost = process.env.KEEPER_RUN_COST || "165000000";
-    const fund = process.env.KEEPER_FUND || "40";
+    const gasLimit = process.env.KEEPER_GAS_LIMIT || "3000000";
+    const gasPrice = process.env.KEEPER_GAS_PRICE || "82";
+    const fund = process.env.KEEPER_FUND || "60";
+    const minCollateral = process.env.MIN_COLLATERAL || "1000000";
+    const maxSwapDeviation = process.env.MAX_SWAP_DEVIATION_BPS || "9900";
+    const shareTokenFee = process.env.SHARE_TOKEN_FEE || "30";
     run("Compile", "forge", ["build"]);
     const guard = create("PriceGuard", [
       CHAINLINK_HBAR_USD, SUPRA, SUPRA_HBAR_USDT, "7200", "500", owner,
     ]); // prettier-ignore
     const pool = create("LiquidityPool", [USDC, owner]);
     const market = create("PerpMarket", [
-      USDC, guard.address, pool.address, owner, interval, gasLimit, runCost, ROUTER, WHBAR,
+      USDC, guard.address, pool.address, owner, interval, gasLimit, gasPrice, ROUTER, WHBAR, minCollateral,
+      maxSwapDeviation,
     ]); // prettier-ignore
     send("Link the pool to the market", pool.address, "setMarket(address)", [market.address]); // prettier-ignore
+    send("Create the pool's HTS share token (cUSDC-LP)", pool.address, "createShareToken()", [], 3_000_000, `${shareTokenFee}ether`); // prettier-ignore
     send("Fund the keeper's fee reserve", market.address, "fund()", [], 100_000, `${fund}ether`); // prettier-ignore
     record([guard, pool, market]);
     console.log("\nNext: yarn custos:start:testnet");
@@ -169,13 +180,13 @@ async function main() {
   if (command === "start") {
     send("Associate the pool with USDC", pool, "associate()");
     send("Associate the market with USDC", market, "associate()");
-    send("Book the keeper's first tick", market, "revive()", [], 2_000_000);
+    send("Book the keeper's first tick", market, "revive()", [], 2_500_000);
   }
 
   if (command === "demo") {
     const me = deployer();
-    const poolHbar = process.env.DEMO_POOL_HBAR || "50";
-    const tradeHbar = process.env.DEMO_TRADE_HBAR || "0.2";
+    const poolHbar = process.env.DEMO_POOL_HBAR || "120";
+    const tradeHbar = process.env.DEMO_TRADE_HBAR || "1";
     send(
       "Associate your account with USDC (a no-op if already done)",
       USDC,
@@ -184,8 +195,10 @@ async function main() {
     const before = BigInt(call(USDC, "balanceOf(address)(uint256)", [me]));
     send(`Swap ${poolHbar} HBAR to USDC on SaucerSwap`, ROUTER, "swapExactETHForTokens(uint256,address[],address,uint256)", ["0", `[${WHBAR},${USDC}]`, me, String(Math.floor(Date.now() / 1000) + 600)], 1_500_000, `${poolHbar}ether`); // prettier-ignore
     const got = (BigInt(call(USDC, "balanceOf(address)(uint256)", [me])) - before).toString(); // prettier-ignore
+    const shareToken = call(pool, "shareToken()(address)");
+    send("Associate your account with the pool's share token (cUSDC-LP)", shareToken, "associate()"); // prettier-ignore
     send("Approve the pool to take that USDC", USDC, "approve(address,uint256)", [pool, got]); // prettier-ignore
-    send(`Deposit ${Number(got) / 1e6} USDC into the pool`, pool, "deposit(uint256,address)", [got, me]); // prettier-ignore
+    send(`Deposit ${Number(got) / 1e6} USDC into the pool`, pool, "deposit(uint256,address)", [got, me], 2_000_000); // prettier-ignore
     const tinybars = String(Math.round(Number(tradeHbar) * 1e8));
     const quote = BigInt(call(market, "quoteHbarToUsdc(uint256)(uint256)", [tinybars])); // prettier-ignore
     const min = ((quote * 99n) / 100n).toString();
@@ -193,7 +206,7 @@ async function main() {
   }
 
   if (command === "revive") {
-    send("Revive the keeper", market, "revive()", [], 1_700_000);
+    send("Revive the keeper", market, "revive()", [], 2_500_000);
   }
 
   console.log(
