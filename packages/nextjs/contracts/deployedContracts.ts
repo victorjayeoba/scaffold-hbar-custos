@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     PriceGuard: {
-      address: "0x7c7a9C1af0C390233C8BC655CAc714EAdA4bFEa0",
+      address: "0xEccd61b4E626f0cbDf33dC22d010e875562070b3",
       abi: [
         {
           type: "constructor",
@@ -300,7 +300,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     LiquidityPool: {
-      address: "0xFF20a2f37d097918404B1482c6E153784baf87F0",
+      address: "0x3B3F8fbfc533b9707A7d83Cb25c8E81bE5238e70",
       abi: [
         {
           type: "constructor",
@@ -637,6 +637,19 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "payKeeper",
+          inputs: [
+            {
+              name: "amount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
         },
         {
           type: "function",
@@ -1005,6 +1018,19 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "KeeperPaid",
+          inputs: [
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "MarketSet",
           inputs: [
             {
@@ -1288,6 +1314,17 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "LiquidityPool__ExceedsFreeAssets",
+          inputs: [
+            {
+              name: "free",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
           name: "LiquidityPool__InvalidAddress",
           inputs: [],
         },
@@ -1338,7 +1375,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     PerpMarket: {
-      address: "0xB934afcA21c9Fc3d7808e23d25581490F350C03E",
+      address: "0xDF65b7Ea6Ac7895b5EF84a8F2b37302F625c87Df",
       abi: [
         {
           type: "constructor",
@@ -1377,6 +1414,16 @@ const deployedContracts = {
               name: "runCostEstimate_",
               type: "uint256",
               internalType: "uint256",
+            },
+            {
+              name: "router_",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "whbar_",
+              type: "address",
+              internalType: "address",
             },
           ],
           stateMutability: "nonpayable",
@@ -1505,6 +1552,58 @@ const deployedContracts = {
         {
           type: "function",
           name: "PAGE_SIZE",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "REFUEL_BELOW_RUNS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "REFUEL_MAX_USDC",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "REFUEL_SLIPPAGE_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "REFUEL_TARGET_RUNS",
           inputs: [],
           outputs: [
             {
@@ -1880,6 +1979,29 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "openWithHbar",
+          inputs: [
+            {
+              name: "isLong",
+              type: "bool",
+              internalType: "bool",
+            },
+            {
+              name: "leverage",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "minCollateral",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
           name: "owner",
           inputs: [],
           outputs: [
@@ -1981,6 +2103,38 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "quoteHbarToUsdc",
+          inputs: [
+            {
+              name: "hbar",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "refuel",
+          inputs: [],
+          outputs: [
+            {
+              name: "hbarOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "renounceOwnership",
           inputs: [],
           outputs: [],
@@ -2005,6 +2159,19 @@ const deployedContracts = {
           inputs: [],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract ISaucerSwapRouter",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -2152,6 +2319,19 @@ const deployedContracts = {
               name: "",
               type: "address",
               internalType: "contract IERC20",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "whbar",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
             },
           ],
           stateMutability: "view",
@@ -2382,6 +2562,31 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "Refueled",
+          inputs: [
+            {
+              name: "usdcIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "hbarOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "runsBefore",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "Revived",
           inputs: [
             {
@@ -2418,6 +2623,31 @@ const deployedContracts = {
           inputs: [
             {
               name: "runs",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "SwappedHbarForCollateral",
+          inputs: [
+            {
+              name: "trader",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "hbarIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "usdcOut",
               type: "uint256",
               indexed: false,
               internalType: "uint256",
@@ -2567,6 +2797,11 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "PerpMarket__NothingToSpend",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "PerpMarket__OpenInterestCap",
           inputs: [
             {
@@ -2579,6 +2814,22 @@ const deployedContracts = {
         {
           type: "error",
           name: "PerpMarket__PositionExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "PerpMarket__ReserveNotLow",
+          inputs: [
+            {
+              name: "runsLeft",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "PerpMarket__SwapDisabled",
           inputs: [],
         },
         {

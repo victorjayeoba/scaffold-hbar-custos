@@ -10,6 +10,7 @@ import { MockAggregator } from "./mocks/MockAggregator.sol";
 import { MockSupra } from "./mocks/MockSupra.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockHederaScheduleService } from "./mocks/MockHederaScheduleService.sol";
+import { MockSaucerRouter } from "./mocks/MockSaucerRouter.sol";
 
 /// @dev Full Custos stack on mocks: $0.12 HBAR, 10,000 USDC in the pool.
 abstract contract CustosBase is Test {
@@ -22,6 +23,8 @@ abstract contract CustosBase is Test {
     PriceGuard internal guard;
     LiquidityPool internal pool;
     PerpMarket internal market;
+    MockSaucerRouter internal router;
+    address internal constant WHBAR = address(0x3aD2);
 
     address internal lp = makeAddr("lp");
     address internal alice = makeAddr("alice");
@@ -39,7 +42,12 @@ abstract contract CustosBase is Test {
         supra = new MockSupra(8, 12_000_000);
         guard = new PriceGuard(address(chainlink), address(supra), 75, 3600, 300, address(this));
         pool = new LiquidityPool(usdc, address(this));
-        market = new PerpMarket(address(usdc), address(guard), address(pool), address(this), 300, 2_500_000, 1e8);
+        router = new MockSaucerRouter(usdc, WHBAR, 2_270_000); // 1 HBAR = 2.27 USDC, like SaucerSwap testnet
+        vm.deal(address(router), 1_000_000e8);
+        market = new PerpMarket(
+            address(usdc), address(guard), address(pool), address(this), 300, 2_500_000, 1e8, address(router), WHBAR
+        );
+        vm.deal(address(market), 100e8); // 100 runs: well above the refuel line
         pool.setMarket(address(market));
 
         _fund(lp, POOL_SEED);
