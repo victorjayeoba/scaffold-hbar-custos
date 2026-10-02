@@ -51,7 +51,8 @@ contract MockHtsLocal {
         // forge-lint: disable-next-line(unsafe-typecast)
         LocalHtsToken created = new LocalHtsToken(token.name, token.symbol, uint8(uint32(decimals)));
         treasuryOf[address(created)] = token.treasury;
-        if (msg.value > 0) payable(msg.sender).transfer(msg.value); // locally, creating a token is free
+        // The fee is kept, like a real token-creation fee. (Hedera credits any unused part straight back to the
+        // caller's balance without calling it; a stand-in can't do that, and on anvil the HBAR is play money.)
         return (SUCCESS, address(created));
     }
 

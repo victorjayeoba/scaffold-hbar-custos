@@ -99,7 +99,7 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 
 1. **A scheduled call runs as the contract itself.** When the Schedule Service executes a call the contract booked, `msg.sender` **and** `tx.origin` are the contract's own address. Probed with a throwaway contract (`0xd603925b9c9F91ce5D4b48C55834a46730a6143b`). So `tick()` accepts only `msg.sender == address(this)`. Nobody can tick early, starve it of gas, or make the booked run revert, and `Liquidated.byNetwork` is exact. (The mirror node's `from` for a scheduled run shows the JSON-RPC relay's operator account, not the contract. Don't rely on it.)
 2. **Hedera holds the whole gas limit up front.** A scheduled run only starts if the payer holds `gasLimit × gasPrice`. Proven: a 5,000,000-gas call on a contract holding 3.6 ℏ failed with `INSUFFICIENT_PAYER_BALANCE` (it needed 5M × 82 = 4.1 ℏ), even though the run itself would have cost far less. **The failed attempt still cost 0.018 ℏ.** The first Custos deploy broke this way: 5.02 ℏ in the reserve, a 6M-gas run at 85 tinybar needing 5.10 ℏ, and a `runsLeft()` that still said 3. Now `runCostEstimate()` = `gasLimit × gasPrice`, `runsLeft()` counts full holds, `canPayNextRun()` says whether the next run can start, and the default gas limit dropped from 6M to 3M.
-3. **`tx.gasprice` inside a scheduled run is the network gas price in tinybars: 82** (testnet, 2026-10-02). Every tick records it, so the run-cost estimate follows the real price. Values above 1,000,000 are ignored as nonsense.
+3. **`tx.gasprice` inside a scheduled run is the network gas price in tinybars, and it moves:** 82 in the probe (2026-10-02), 84 at the final deploy's first tick an hour later (it tracks Hedera's USD-denominated gas fee against the HBAR rate). Every tick records it, so the run-cost estimate follows the real price. Values above 1,000,000 are ignored as nonsense.
 4. **Booking a schedule costs about 1.41M gas**, whatever gas limit it books (measured with 300k and 1M limits; an 800k total fails). The keeper holds back 1.6M gas from `_work()` so booking the next tick always fits, and rejects gas limits at or below that.
 5. **`block.timestamp` is the start of Hedera's ~2 s block.** A schedule that fired at its exact second ran in a block that started a second earlier, so the first version reverted `TooEarly`. `tick()` accepts up to 5 s early.
 6. **Capacity is per second.** `hasScheduleCapacity` is checked first; if the second is full the keeper tries the next one, up to 10 seconds. If all 10 are full or the booking fails, `nextRunAt` still moves forward and anyone can call `revive()` once the tick is `2 × interval` overdue.
@@ -180,6 +180,7 @@ Proof transactions are listed in [`TESTNET.md`](TESTNET.md).
 - **The keeper's HBAR can't be withdrawn.** It can only pay for network runs. Redeploying leaves the old reserve behind.
 - **The owner can tune, not take.** PerpMarket's owner can only correct the gas-price estimate; PriceGuard's owner can only change staleness/deviation within hard bounds; the pool's owner links the market and creates the share token once each. No one can move user funds.
 - **Testnet assets.** USDC 0.0.5449 is SaucerSwap's testnet token.
+- **Local chain is for trading and the pool only.** `yarn chain` + `yarn foundry:deploy` runs everything on mocks with stand-ins for the two system contracts; the keeper books ticks but nothing runs them, and the mock feeds go `Stale` 2 h after deploy (move them with `MockAggregator.set` / `MockSupra.set` from `/debug`).
 
 ## 9. Recipes (for AGENTS.md)
 
@@ -201,7 +202,7 @@ The engine doesn't care what asset it prices: a market is a `PriceGuard` config 
    (Chainlink ETH/USD on Hedera testnet, 8 dp; Supra ETH/USDT is pair 19. Supra's testnet ETH feed goes 8+ h between updates, so testnet needs the 1-day maximum; use about 3,600 on mainnet.)
 2. `yarn foundry:test`: `test/Markets.t.sol` runs open, close, network liquidation and pool accounting for **every** market in `markets.json` at its `refPrice8`.
 3. Check the config offline, `yarn workspace @sh/foundry check-markets ETH-USD`, then the feeds on testnet, `yarn custos:check-market:testnet --market ETH-USD`: it deploys only a PriceGuard and reads both feeds, and exits 1 if either doesn't answer. (Run on 2026-10-03: Chainlink 2,657.85, Supra 2,702.77, both answering; PriceGuard `0x1eD9de819a144d7b6C80102Ff5FA83180151949D`.)
-4. Deploy it: `yarn workspace @sh/foundry custos deploy --market ETH-USD`, then `start` and `demo` with the same flag. Its addresses go to `deployments/296-eth-usd.json`; the app keeps showing HBAR-USD.
+4. Deploy it: `yarn custos:deploy:testnet --market ETH-USD`, then `yarn custos:start:testnet --market ETH-USD` (and `demo` the same way). Its addresses go to `deployments/296-eth-usd.json`; the app keeps showing HBAR-USD.
 
 ### Reuse the engine for lending
 

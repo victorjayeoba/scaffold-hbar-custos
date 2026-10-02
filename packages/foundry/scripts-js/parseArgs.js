@@ -19,17 +19,16 @@ let keystoreArg = null;
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
 Usage: yarn foundry:deploy [options]
+Deploys with forge script, which works on a local chain (yarn chain) but not through the Hedera JSON-RPC
+relay. For Hedera testnet use: yarn custos:deploy:testnet (see packages/foundry/README.md).
 Options:
   --file <filename>     Specify the deployment script file (default: Deploy.s.sol)
   --network <network>   Specify the network (default: localhost)
   --keystore <name>     Specify the keystore account to use (bypasses selection prompt)
   --help, -h           Show this help message
 Examples:
-  yarn foundry:deploy --file Deploy.s.sol --network hedera_testnet
-  yarn foundry:deploy --network hedera_testnet --keystore my-account
-  yarn foundry:deploy --file DeployFactory.s.sol --network hedera_testnet
-  yarn foundry:deploy
-  yarn foundry:deploy
+  yarn foundry:deploy                       local chain, Custos on mocks
+  yarn foundry:deploy --file Deploy.s.sol   the same, naming the script
   `);
   process.exit(0);
 }
