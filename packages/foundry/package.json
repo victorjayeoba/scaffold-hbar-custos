@@ -22,7 +22,8 @@
     "verify:testnet": "forge verify-contract --chain-id 296 --verifier sourcify",
     "verify:mainnet": "forge verify-contract --chain-id 295 --verifier sourcify",
     "postinstall": "shx cp -n .env.example .env",
-    "custos": "node scripts-js/custos.js"
+    "custos": "node scripts-js/custos.js",
+    "check-markets": "node scripts-js/checkMarkets.js"
   },
   "dependencies": {
     "dotenv": "~16.3.1",

@@ -1,0 +1,59 @@
+{
+  "name": "custos-eth-usd-market",
+  "description": "Graded against the running app with no wallet and no credentials. Adding a market is configuration, so the app must be exactly as healthy as before: the keeper, trade and pool pages still read the live HBAR-USD deployment. The new market's feeds are proven on testnet by the chainValidation deploy hook before grading.",
+  "baseUrl": "http://localhost:3000",
+  "assertions": [
+    {
+      "id": "C1",
+      "statement": "The keeper page shows the network keeping the market: a next check, the gas held up front per run, and whether the reserve can pay the next run.",
+      "howToVerify": [
+        "Open http://localhost:3000/keeper.",
+        "Wait up to 30 seconds for live data to load.",
+        "Confirm the page shows 'Next check' (or 'Next check in' with a countdown, or 'Due now').",
+        "Confirm the labels 'Held up front per run' and 'Can pay next run' are visible with values next to them.",
+        "Confirm a 'Keeper activity' section is present."
+      ],
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true
+    },
+    {
+      "id": "C2",
+      "statement": "The trade page still prices HBAR-USD from the live feeds and offers both ways in: USDC and HBAR via SaucerSwap.",
+      "howToVerify": [
+        "Open http://localhost:3000/trade.",
+        "Confirm a 'Mark price' value is shown and the Chainlink feed is named on the page.",
+        "Confirm an option labelled 'HBAR via SaucerSwap' is offered for collateral.",
+        "Confirm a 'Liquidation price' figure appears once a collateral amount is entered (enter 5)."
+      ],
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true
+    },
+    {
+      "id": "C3",
+      "statement": "The pool page shows the pool's money split between what backs open positions and what is free to withdraw.",
+      "howToVerify": [
+        "Open http://localhost:3000/pool.",
+        "Wait up to 30 seconds for live data.",
+        "Confirm the labels 'Backing open positions' and 'Free to withdraw' are visible with USDC values.",
+        "Confirm a 'Deposit' control is present."
+      ],
+      "severity": "major",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true
+    },
+    {
+      "id": "C4",
+      "statement": "The debug page lists the deployed contracts, so the ABIs the app was built with still match.",
+      "howToVerify": [
+        "Open http://localhost:3000/debug.",
+        "Confirm tabs or entries for 'PerpMarket', 'LiquidityPool' and 'PriceGuard' are present.",
+        "Open PerpMarket and confirm read functions such as 'nextRunAt' and 'runsLeft' are listed."
+      ],
+      "severity": "minor",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+schemaVersion: 2
+
+name: custos-eth-usd-market
+description: >-
+  Add an ETH-USD market to Custos by following the "Add a market" recipe in
+  AGENTS.md: a markets.json entry (Chainlink ETH/USD, Supra ETH/USDT pair 19,
+  a staleness window that fits Supra's ETH cadence), an ETH-specific Foundry
+  test, and a row in the README's markets table. The engine itself must not
+  change: a market is configuration. The new market's two price feeds are then
+  read live on Hedera testnet by a PriceGuard deployed from a throwaway account.
+
+agent: claude
+maxAttempts: 3
+
+# Is the template healthy before the agent touches it?
+baseline:
+  commands:
+    - name: install
+      command: yarn install
+      timeoutMs: 600000
+    - name: foundry-test
+      command: yarn foundry:test
+      timeoutMs: 600000
+    - name: next-check-types
+      command: yarn next:check-types
+      timeoutMs: 300000
+
+# Tier 0 and 1 use the default paths: validators/static.json and validators/yarn.json.
+validators:
+  playwright: .harness/validators/playwright-smoke.yaml
+
+# Tier 3: the adversarial validator grades the running app against this.
+contract: .harness/acceptance-contract.json
+validator:
+  enabled: true
+
+# Tier 3.5. The recipe's on-chain check deploys a PriceGuard with the new market's
+# config and reads both feeds (Chainlink ETH/USD and Supra pair 19) on testnet. It
+# exits 1 if either feed doesn't answer. The harness's funded ephemeral account is
+# handed to it through an environment variable only, never a file. A PriceGuard
+# deploy costs about 1 HBAR, so 10 HBAR covers three attempts.
+chainValidation:
+  enabled: true
+  network: testnet
+  operator:
+    accountIdEnv: HEDERA_OPERATOR_ID
+    privateKeyEnv: HEDERA_OPERATOR_KEY
+  fundingHbar: 10
+  sweepBack: true
+  deploy:
+    commands:
+      - name: eth-usd-feeds-on-testnet
+        command: >-
+          DEPLOYER_PRIVATE_KEY="$HARNESS_SIGNER_PRIVATE_KEY"
+          yarn custos:check-market:testnet --market ETH-USD
+        timeoutMs: 300000
