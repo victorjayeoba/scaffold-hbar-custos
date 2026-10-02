@@ -1,31 +1,53 @@
 # Custos on Hedera testnet
 
-Everything below can be checked on HashScan. Addresses are also in [`deployments/296.json`](deployments/296.json).
+Everything below can be checked on HashScan. HashScan opens a transaction from its EVM hash: `https://hashscan.io/testnet/transaction/<hash>`. Addresses are also in [`deployments/296.json`](deployments/296.json). What each item means, and what it cost, is in [`CONTRACTS_NOTES.md`](CONTRACTS_NOTES.md).
 
-## Deployment
+## Deployment (final, 2026-10-02)
 
 | Contract | Hedera ID | EVM address |
 | --- | --- | --- |
-| PriceGuard | [0.0.10776695](https://hashscan.io/testnet/contract/0.0.10776695) | `0x7c7a9C1af0C390233C8BC655CAc714EAdA4bFEa0` |
-| LiquidityPool (cUSDC-LP) | [0.0.10776700](https://hashscan.io/testnet/contract/0.0.10776700) | `0xFF20a2f37d097918404B1482c6E153784baf87F0` |
-| PerpMarket (keeper) | [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702) | `0xB934afcA21c9Fc3d7808e23d25581490F350C03E` |
+| PerpMarket (keeper) | [0.0.10833087](https://hashscan.io/testnet/contract/0.0.10833087) | `0xb79Cc40A4b1d3C135f71Ed6dc4e9a231cC369b67` |
+| LiquidityPool | [0.0.10833082](https://hashscan.io/testnet/contract/0.0.10833082) | `0x06061a60D2f9E99410F1D2b310DCF51A1ff2A3b1` |
+| PriceGuard | [0.0.10833074](https://hashscan.io/testnet/contract/0.0.10833074) | `0x293e90142cc9dDF603d9Ab405B43236e8077EF75` |
+| cUSDC-LP share token (HTS, created by the pool) | [0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | `0x0000000000000000000000000000000000a54cc2` |
 
-Keeper: interval 1,800 s, gas limit 2,500,000, 40 ℏ fee reserve. PriceGuard: max staleness 7,200 s, max deviation 500 bps.
-First tick booked on the Schedule Service as [0.0.10776713](https://hashscan.io/testnet/schedule/0.0.10776713).
+Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 ℏ held per run), 36 ℏ reserve. PriceGuard: Chainlink HBAR/USD checked against Supra HBAR/USDT (pair 75), max staleness 7,200 s, max deviation 500 bps. Min collateral 1 USDC. Refuel band 300 bps. Collateral: SaucerSwap testnet USDC 0.0.5449.
+
+## Every flow, on chain
+
+| Flow | Transaction |
+| --- | --- |
+| Pool creates its HTS share token (cUSDC-LP) | [`0xf405eade…340a5a`](https://hashscan.io/testnet/transaction/0xf405eadedf1ddd1e99b615a619ae451d0f5b78dd049fb8bfb84189e681340a5a) |
+| Keeper books its first tick (`revive`) | [`0xa1b7d249…fa1b71`](https://hashscan.io/testnet/transaction/0xa1b7d249013f1f2812b4176ccc234f54fc0a2f0dc48270cd7f2bdd26e8fa1b71), schedule [0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097) |
+| Deposit 361.79 USDC, pool mints cUSDC-LP | [`0x55d081b2…54d722`](https://hashscan.io/testnet/transaction/0x55d081b26535e7c9ef68664a080f0609a7caacab03becc115ee7180e1154d722) |
+| Open with HBAR: 50x long, 1 ℏ swapped to USDC on SaucerSwap | [`0x62868b09…3986e7`](https://hashscan.io/testnet/transaction/0x62868b097e839fdeeef472c7fd8ff26f58a3ddd410924b825f2855d75e3986e7) |
+| Open with USDC: 50x short, 1.2 USDC | [`0xfac6b7ec…7bdba`](https://hashscan.io/testnet/transaction/0xfac6b7ecccee1f124fd9eb56be2f9657a8457dee24ccef923c2f434abbb7bdba) |
+| Open with USDC: 2x long, 1 USDC | [`0xd3f325cf…443de8`](https://hashscan.io/testnet/transaction/0xd3f325cf8191e5e197b9af1f45a9ab90173079181724f9f331bb603726443de8) |
+| Close, paid out in USDC | [`0xbaa65216…c61df6`](https://hashscan.io/testnet/transaction/0xbaa65216cdb2988c3164ae25193927e622255133d6866d3c46605d6f83c61df6) |
+| Close straight to HBAR: the USDC payout swapped on SaucerSwap (`closeToHbar`) | [`0x1e427e54…d91c36`](https://hashscan.io/testnet/transaction/0x1e427e54abd7594d815afa933b1dbacb31ec45ca6f5133f9b416801117d91c36) |
+| Redeem 10 cUSDC-LP, pool burns the shares | [`0x90487242…2d7422`](https://hashscan.io/testnet/transaction/0x9048724259694f86a20fa69aa069a89d3e85045703b0a6f1a9b302d66c2d7422) |
 
 ## The network keeps the market
 
-Every tick below was executed by the Schedule Service from a schedule the previous tick booked. No one signed them.
+Each tick is executed by the Schedule Service from a schedule the previous tick booked; `msg.sender` is the market itself, and no one signs it.
+
+| Tick | Executed | What it did |
+| --- | --- | --- |
+| _first tick due 1790983197_ | | |
+
+## Earlier deploy: the first liquidation nobody signed (2026-09-29)
+
+The first version (PerpMarket [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) proved the whole loop. Every tick below was executed by the Schedule Service from a schedule the previous tick booked.
 
 | Tick | Schedule | Executed | What it did |
 | --- | --- | --- | --- |
 | 1 | [0.0.10776713](https://hashscan.io/testnet/schedule/0.0.10776713) | [1790687748.000592261](https://hashscan.io/testnet/transaction/1790687748.000592261) | Funding accrued, swept 2 traders, none underwater |
 | 2 | [0.0.10777055](https://hashscan.io/testnet/schedule/0.0.10777055) | [1790689547.018645425](https://hashscan.io/testnet/transaction/1790689547.018645425) | Swept 2 traders, none underwater yet |
-| 3 | [0.0.10777398](https://hashscan.io/testnet/schedule/0.0.10777398) | [1790691346.057913123](https://hashscan.io/testnet/transaction/1790691346.057913123) | **Liquidated** the 50x long `0xA807…6Ec6` at 0.11304294 (liquidation price 0.11353): `Liquidated(byNetwork = true, reward = 0)`, all 0.1425 USDC collateral to the pool |
+| 3 | [0.0.10777398](https://hashscan.io/testnet/schedule/0.0.10777398) | [1790691346.057913123](https://hashscan.io/testnet/transaction/1790691346.057913123) | **Liquidated** the 50x long `0xA807…6Ec6` at 0.11304294 (liquidation price 0.11353): `Liquidated(byNetwork = true, reward = 0)`, all 0.1425 USDC collateral to the pool. Charged 1.755 ℏ for 1.61M gas used of 2.5M |
 
-Tick 3 ran one second before its `nextRunAt` (Hedera's block timestamp lag), which the 5 s tolerance absorbs.
+Tick 3 ran one second before its `nextRunAt` (Hedera's block timestamp lag), which the 5 s tolerance absorbs. That deploy's chain later stopped with `INSUFFICIENT_PAYER_BALANCE`: Hedera holds a run's whole gas limit up front, and its 6M-gas runs needed more than the reserve held. The final deploy accounts for this (see CONTRACTS_NOTES.md §4.2).
 
-## The keeper books itself (Heartbeat, M1)
+## The keeper books itself (Heartbeat)
 
 [`Heartbeat`](contracts/examples/Heartbeat.sol) [0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628) ticked three times, 60 s apart, each run executed by the network from a schedule the previous run created:
 
@@ -35,11 +57,10 @@ Tick 3 ran one second before its `nextRunAt` (Hedera's block timestamp lag), whi
 | 2 | [0.0.10776638](https://hashscan.io/testnet/schedule/0.0.10776638) | [1790685529.003290433](https://hashscan.io/testnet/transaction/1790685529.003290433) | 1.607 ℏ (includes booking tick 3) |
 | 3 | [0.0.10776648](https://hashscan.io/testnet/schedule/0.0.10776648) | [1790685588.032277208](https://hashscan.io/testnet/transaction/1790685588.032277208) | 0.066 ℏ (last beat, books nothing) |
 
-## Learned on testnet
+## Probes (throwaway contracts that answered a question)
 
-- **Booking a schedule costs ~1.41M gas** (`scheduleCall`, measured with 300k and 1M scheduled gas limits: same cost; 800k total fails).
-  A keeper's own gas limit must cover booking the next tick, so `ScheduledKeeper` holds back 1.5M gas from `_work()` and rejects limits at or below it.
-  At 114 tinybar/gas that is ~1.6 ℏ per tick, paid from the contract's balance.
-- **`block.timestamp` is the start of Hedera's ~2 s block.** A schedule that fired exactly at `nextRunAt` (…974.119) ran in a block that started at …973.34, so the first version reverted `TooEarly`. `tick()` now accepts up to 5 s early.
-- **Supra's testnet HBAR/USDT pushes about hourly** and quotes USDT, so it can sit 3% from Chainlink's HBAR/USD for a while. Staleness is 2 h and deviation 5% on testnet.
-- **`forge script` cannot deploy through the Hedera JSON-RPC relay** with current Foundry (the relay rejects the EIP-1898 block parameter forking sends), and cannot simulate HSS/HTS. `yarn custos:deploy:testnet` uses `forge create` and `cast send` instead.
+| Question | Contract | Answer |
+| --- | --- | --- |
+| Who is `msg.sender` when the Schedule Service runs a booked call? | `0xd603925b9c9F91ce5D4b48C55834a46730a6143b` | The contract itself (`msg.sender` and `tx.origin`) |
+| What is `tx.gasprice` inside a scheduled run? | `0x2B8ac8aC37764617b96D940141A6f8f5f19b6d8e` | 82 (tinybars per gas) |
+| Does Hedera hold the whole gas limit before a scheduled run? | same | Yes: a 5M-gas run with 3.6 ℏ in the contract failed `INSUFFICIENT_PAYER_BALANCE` (needs 4.1 ℏ), schedule [0.0.10832561](https://hashscan.io/testnet/schedule/0.0.10832561); the failed attempt cost 0.018 ℏ |
