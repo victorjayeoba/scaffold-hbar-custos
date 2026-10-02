@@ -44,7 +44,7 @@
               "command": "{run:foundry:account:generate}"
             },
             {
-              "label": "Fund it with testnet HBAR (deploy puts 40 HBAR in the keeper reserve by default; the demo swaps 50 more)",
+              "label": "Fund it with testnet HBAR (deploy puts 40 HBAR in the keeper reserve by default; the demo swaps 120 more)",
               "url": "https://portal.hedera.com/faucet"
             },
             {
