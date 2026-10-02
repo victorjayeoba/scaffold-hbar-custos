@@ -12,10 +12,12 @@
 //         or DEPLOYER_PRIVATE_KEY in the environment (never write it into a file).
 // Keeper (deploy): KEEPER_INTERVAL s (default 1800), KEEPER_GAS_LIMIT (default 3000000),
 //                  KEEPER_GAS_PRICE tinybars per gas (default 82; each network tick then records the real one),
-//                  KEEPER_FUND HBAR (default 60). Hedera holds a run's whole gas limit up front, so one run needs
+//                  KEEPER_FUND HBAR (default 40). Hedera holds a run's whole gas limit up front, so one run needs
 //                  KEEPER_GAS_LIMIT x gas price in the reserve: 3,000,000 x 82 tinybars = 2.46 HBAR.
-// Market (deploy): MIN_COLLATERAL USDC units (default 1000000 = 1 USDC), MAX_SWAP_DEVIATION_BPS (default 9900:
-//                  SaucerSwap testnet's USDC pool trades ~20x off the oracle price; use ~300 on mainnet),
+// Market (deploy): MIN_COLLATERAL USDC units (default 1000000 = 1 USDC), MAX_SWAP_DEVIATION_BPS (default 300: the
+//                  keeper's refuel swap must fill within 3% of the oracle price). SaucerSwap testnet's USDC pool trades
+//                  ~22x off the oracle, so on testnet refuels fail closed and the reserve is topped up with `fund()`;
+//                  a wide band would let every refuel overpay ~22x out of LP money.
 //                  SHARE_TOKEN_FEE HBAR sent to create the HTS LP token (default 30; the unused part comes back).
 // Demo (HBAR): DEMO_POOL_HBAR swapped to USDC for the pool (default 120), DEMO_TRADE_HBAR per position (default 1).
 //              A 50x position needs the pool to hold twice its notional (open interest is capped at half the pool).
@@ -155,9 +157,9 @@ async function main() {
     const interval = process.env.KEEPER_INTERVAL || "1800";
     const gasLimit = process.env.KEEPER_GAS_LIMIT || "3000000";
     const gasPrice = process.env.KEEPER_GAS_PRICE || "82";
-    const fund = process.env.KEEPER_FUND || "60";
+    const fund = process.env.KEEPER_FUND || "40";
     const minCollateral = process.env.MIN_COLLATERAL || "1000000";
-    const maxSwapDeviation = process.env.MAX_SWAP_DEVIATION_BPS || "9900";
+    const maxSwapDeviation = process.env.MAX_SWAP_DEVIATION_BPS || "300";
     const shareTokenFee = process.env.SHARE_TOKEN_FEE || "30";
     run("Compile", "forge", ["build"]);
     const guard = create("PriceGuard", [

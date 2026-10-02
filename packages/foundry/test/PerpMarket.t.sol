@@ -739,4 +739,33 @@ contract PerpMarketTest is CustosBase {
         assertEq(market.totalCollateral(), 99e6 + 25e6);
         assertEq(market.positionOf(alice).collateral, 124e6);
     }
+
+    /// @dev The testnet LP drain (frontend /pool, 2 Oct): SaucerSwap testnet prices HBAR ~22x off Chainlink, so with a
+    ///      wide band every refuel overpaid ~22x from the pool. With a 3% band the refuel fails closed instead: the
+    ///      tick still sweeps and reschedules, and not one micro-USDC leaves the pool.
+    function test_tightBandRefusesAMispricedSaucerSwapAndSparesTheLps() public {
+        LiquidityPool tightPool = new LiquidityPool(usdc, address(this));
+        PerpMarket tight = new PerpMarket(
+            address(usdc), address(guard), address(tightPool), address(this), 300, 2_500_000, 40, address(router), WHBAR, 1e6, 300
+        );
+        tightPool.setMarket(address(tight));
+        tightPool.createShareToken{ value: 1e8 }();
+        usdc.mint(address(this), 1_000e6);
+        usdc.approve(address(tightPool), type(uint256).max);
+        tightPool.deposit(1_000e6, address(this));
+
+        vm.deal(address(tight), 5e8); // 5 runs left: below the refuel line
+        tight.revive();
+        vm.warp(tight.nextRunAt());
+        _setPrice(12_000_000); // oracle $0.12, while the mock router pays 1 HBAR per 2.27 USDC (~19x off)
+        uint256 poolBefore = usdc.balanceOf(address(tightPool));
+
+        vm.prank(address(tight));
+        tight.tick();
+
+        assertEq(usdc.balanceOf(address(tightPool)), poolBefore); // LPs untouched
+        assertEq(address(tight).balance, 5e8); // no refuel happened
+        assertEq(tight.nextRunAt(), block.timestamp + 300); // the chain goes on
+        assertEq(tight.runCount(), 1);
+    }
 }

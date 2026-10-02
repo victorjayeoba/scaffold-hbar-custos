@@ -238,7 +238,7 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     /// @notice Associates the market with USDC (HIP-719). Needed once on Hedera to hold collateral.
     function associate() external returns (bool ok) {
         bytes memory ret;
-        uint256 rc;
+        uint256 rc = 0;
         (ok, ret) = address(usdc).call(abi.encodeCall(IHRC719.associate, ()));
         if (ok && ret.length >= 32) rc = abi.decode(ret, (uint256));
         emit Associated(ok, rc);
@@ -359,8 +359,8 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     function _sweep(uint256 price) internal {
         uint256 from = cursor;
         uint256 i = from < traders.length ? from : 0;
-        uint256 checked;
-        uint256 liquidated;
+        uint256 checked = 0;
+        uint256 liquidated = 0;
         while (checked < PAGE_SIZE && i < traders.length && gasleft() > SWEEP_GAS_PER_TRADER) {
             address trader = traders[i];
             checked++;
@@ -380,7 +380,7 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     function _liquidate(address trader, uint256 price, address by) internal {
         Position storage p = _positions[trader];
         uint256 collateral = p.collateral;
-        uint256 reward;
+        uint256 reward = 0;
         if (by != address(0)) {
             reward = p.entryNotional * LIQUIDATION_FEE_BPS / BPS;
             if (reward > collateral) reward = collateral;

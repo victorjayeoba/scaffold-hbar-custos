@@ -93,7 +93,7 @@ contract LiquidityPool is Ownable, ReentrancyGuard {
 
     /// @notice Creates the cUSDC-LP share token on the Hedera Token Service, with the pool as treasury and as the
     ///         only supply key. `msg.value` pays HTS's token-creation fee; whatever is left is sent back.
-    function createShareToken() external payable onlyOwner nonReentrant {
+    function createShareToken() external payable nonReentrant onlyOwner {
         if (shareToken != address(0)) revert LiquidityPool__ShareTokenExists();
 
         IHederaTokenService.TokenKey[] memory keys = new IHederaTokenService.TokenKey[](1);
@@ -136,7 +136,7 @@ contract LiquidityPool is Ownable, ReentrancyGuard {
     /// @notice Associates the pool with its USDC (HIP-719). Needed once on Hedera before it can hold USDC.
     function associate() external returns (bool ok) {
         bytes memory ret;
-        uint256 rc;
+        uint256 rc = 0;
         (ok, ret) = address(_asset).call(abi.encodeCall(IHRC719.associate, ()));
         if (ok && ret.length >= 32) rc = abi.decode(ret, (uint256));
         emit Associated(ok, rc);

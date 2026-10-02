@@ -23,8 +23,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         the Hedera JSON-RPC relay on current Foundry, nor simulate the Schedule and Token services.
  * @dev Env (all optional): KEEPER_INTERVAL (s, default 1800), KEEPER_GAS_LIMIT (default 4,000,000),
  *      KEEPER_RUN_COST (default 1.65e8), KEEPER_FUND (sent to the keeper's reserve, default 40 ether),
- *      MIN_COLLATERAL (USDC 6 dp, default 1e6), MAX_SWAP_DEVIATION_BPS (default 9900: the mock router quotes like
- *      SaucerSwap testnet, ~20x off the oracle; use ~300 on mainnet).
+ *      MIN_COLLATERAL (USDC 6 dp, default 1e6), MAX_SWAP_DEVIATION_BPS (default 300: refuels must fill within 3% of
+ *      the oracle price).
  */
 contract DeployScript is ScaffoldETHDeploy {
     uint256 internal constant SUPRA_HBAR_USDT = 75;
@@ -50,7 +50,7 @@ contract DeployScript is ScaffoldETHDeploy {
             runCost: vm.envOr("KEEPER_RUN_COST", uint256(165_000_000)),
             fund: vm.envOr("KEEPER_FUND", uint256(40 ether)),
             minCollateral: vm.envOr("MIN_COLLATERAL", uint256(1e6)),
-            maxSwapDeviation: vm.envOr("MAX_SWAP_DEVIATION_BPS", uint256(9_900))
+            maxSwapDeviation: vm.envOr("MAX_SWAP_DEVIATION_BPS", uint256(300))
         });
         if (block.chainid == 31337) _installLocalSystemContracts();
 
@@ -58,7 +58,7 @@ contract DeployScript is ScaffoldETHDeploy {
         usdc.mint(deployer, 1_000_000e6);
         address chainlink = address(new MockAggregator(8, 12_000_000));
         address supra = address(new MockSupra(8, 12_000_000));
-        MockSaucerRouter router = new MockSaucerRouter(usdc, WHBAR, 2_270_000);
+        MockSaucerRouter router = new MockSaucerRouter(usdc, WHBAR, 120_000); // 1 HBAR = 0.12 USDC, like the oracle
         PriceGuard guard = new PriceGuard(chainlink, supra, SUPRA_HBAR_USDT, MAX_STALENESS, MAX_DEVIATION_BPS, deployer);
 
         deployments.push(Deployment({ name: "MockUSDC", addr: address(usdc) }));
