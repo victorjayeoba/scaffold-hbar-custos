@@ -177,7 +177,7 @@ const AccountBlocker = ({ pool }: { pool: PoolState }) =>
       <a className="link" href={HBAR_FAUCET} target="_blank" rel="noreferrer">
         Hedera Portal faucet
       </a>{" "}
-      and Hedera creates one; then you can associate USDC.
+      and Hedera creates one; then you can associate its tokens and deposit.
     </p>
   ) : null;
 

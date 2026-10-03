@@ -54,7 +54,7 @@ function loadDeployments() {
 
 function marketAddress(deployments) {
   const entry = Object.entries(deployments).find(
-    ([, name]) => name === "PerpMarket",
+    ([, name]) => name === "PerpMarket"
   );
   if (!entry)
     throw new Error("No PerpMarket in deployments/296.json. Deploy first.");
@@ -126,7 +126,7 @@ function toMessages(events) {
 /** The last event the topic already holds, read back from the topic itself. */
 async function lastLogged(topicId) {
   const page = await getJson(
-    `/api/v1/topics/${topicId}/messages?order=desc&limit=25`,
+    `/api/v1/topics/${topicId}/messages?order=desc&limit=25`
   );
   for (const msg of page.messages || []) {
     try {
@@ -145,13 +145,13 @@ async function operatorClient() {
   const key = process.env.HEDERA_OPERATOR_KEY;
   if (!id || !key) {
     throw new Error(
-      "Set HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY (environment only), or use --dry-run.",
+      "Set HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY (environment only), or use --dry-run."
     );
   }
   const privateKey = PrivateKey.fromStringECDSA(key.replace(/^0x/, ""));
   const client = Client.forTestnet().setOperator(
     AccountId.fromString(id),
-    privateKey,
+    privateKey
   );
   return { client, privateKey };
 }
@@ -170,7 +170,7 @@ async function createTopic(market) {
   deployments.hcsTopic = topicId;
   writeFileSync(DEPLOYMENTS, JSON.stringify(deployments, null, 2) + "\n");
   console.log(
-    `✅ Topic ${topicId} created and recorded in deployments/296.json as "hcsTopic"`,
+    `✅ Topic ${topicId} created and recorded in deployments/296.json as "hcsTopic"`
   );
   console.log(`   https://hashscan.io/testnet/topic/${topicId}`);
   client.close();
@@ -184,7 +184,7 @@ async function main() {
   if (CREATE) {
     if (topicId)
       throw new Error(
-        `A topic is already recorded (${topicId}). Remove it to create another.`,
+        `A topic is already recorded (${topicId}). Remove it to create another.`
       );
     topicId = await createTopic(market);
   }
@@ -206,12 +206,14 @@ async function main() {
     const tx = await new TopicMessageSubmitTransaction({ topicId, message: JSON.stringify(m) }).execute(client); // prettier-ignore
     const receipt = await tx.getReceipt(client);
     console.log(
-      `#${receipt.topicSequenceNumber} ${m.e}${m.run ? ` run ${m.run}` : ""} ${m.ts}`,
+      `#${receipt.topicSequenceNumber} ${m.e}${m.run ? ` run ${m.run}` : ""} ${
+        m.ts
+      }`
     );
   }
   client.close();
   console.log(
-    `✅ Logged ${messages.length} event(s): https://hashscan.io/testnet/topic/${topicId}`,
+    `✅ Logged ${messages.length} event(s): https://hashscan.io/testnet/topic/${topicId}`
   );
 }
 

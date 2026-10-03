@@ -27,5 +27,4 @@ interface IHederaScheduleService {
      * @param gasLimit Gas limit for the planned call
      */
     function hasScheduleCapacity(uint256 expirySecond, uint256 gasLimit) external view returns (bool hasCapacity);
-
 }

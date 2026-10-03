@@ -45,7 +45,8 @@ export const PoolPosition = ({
         </div>
       ) : shares.balance === 0n ? (
         <p className="mt-6 mb-0 text-base-content/70">
-          You don&apos;t hold any pool shares yet. Deposit USDC to become a liquidity provider.
+          You don&apos;t hold any pool shares yet. Deposit USDC, or HBAR through SaucerSwap, to become a liquidity
+          provider.
         </p>
       ) : (
         <>
