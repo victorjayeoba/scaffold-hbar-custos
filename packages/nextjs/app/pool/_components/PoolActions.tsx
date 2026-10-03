@@ -5,13 +5,15 @@ import { PoolConnectGate } from "./PoolConnectGate";
 import { PoolSteps, type Step } from "./PoolSteps";
 import { useDebounceValue } from "usehooks-ts";
 import { type Address, formatUnits } from "viem";
+import { useBalance, useGasPrice } from "wagmi";
 import { USDC_DECIMALS, amountProblem, fmt, fmtUsdc, parseAmount } from "~~/app/pool/_lib/format";
 import { poolErrorMessage } from "~~/app/pool/_lib/poolErrors";
 import { usePoolWrite } from "~~/app/pool/_lib/usePoolWrite";
 import { POLL } from "~~/hooks/custos/poll";
 import type { HtsToken } from "~~/hooks/custos/useHtsToken";
 import type { PoolState } from "~~/hooks/custos/usePool";
-import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
+import { useScaffoldReadContract, useTargetNetwork } from "~~/hooks/scaffold-hbar";
+import { WEIBARS_PER_TINYBAR, minOutAfterSlippage } from "~~/utils/custos/perpMath";
 
 const USDC_FAUCET = "https://faucet.circle.com/";
 const HBAR_FAUCET = "https://portal.hedera.com/faucet";
@@ -69,7 +71,7 @@ export const PoolActions = ({
         {!owner || wrongNetwork ? (
           <PoolConnectGate
             wrongNetwork={wrongNetwork}
-            what={tab === "deposit" ? "to deposit USDC into the pool" : "to withdraw from the pool"}
+            what={tab === "deposit" ? "to deposit USDC or HBAR into the pool" : "to withdraw from the pool"}
           />
         ) : tab === "deposit" ? (
           <DepositForm pool={pool} owner={owner} />
@@ -179,64 +181,239 @@ const AccountBlocker = ({ pool }: { pool: PoolState }) =>
     </p>
   ) : null;
 
+type PayWith = "usdc" | "hbar";
+
+const SLIPPAGE_OPTIONS = [50n, 100n, 200n]; // bps, as on /trade
+/** Gas limit the live zap deposit was sent with (it used 1,049,204); Max keeps this much fee back. */
+const DEPOSIT_WITH_HBAR_GAS = 1_400_000n;
+const HBAR_DECIMALS = 8; // tinybars
+const fmtHbar = (weibars?: bigint) => fmt(weibars, 18, 2, 2);
+
+/** A row of pill radios, the same control as "Withdraw by". */
+const PillChoice = <T extends string | bigint>({
+  legend,
+  name,
+  options,
+  value,
+  onChange,
+}: {
+  legend: string;
+  name: string;
+  options: readonly (readonly [T, string])[];
+  value: T;
+  onChange: (v: T) => void;
+}) => (
+  <fieldset className="m-0 mb-4 border-0 p-0">
+    <legend className="mb-2 text-sm">{legend}</legend>
+    <div className="inline-flex flex-wrap rounded-full bg-base-200 p-1 text-sm">
+      {options.map(([v, label]) => (
+        <label
+          key={String(v)}
+          className={`cursor-pointer rounded-full px-4 py-1.5 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary ${
+            value === v ? "bg-base-100 shadow-sm" : "text-base-content/70"
+          }`}
+        >
+          <input
+            type="radio"
+            name={name}
+            value={String(v)}
+            checked={value === v}
+            onChange={() => onChange(v)}
+            className="sr-only"
+          />
+          {label}
+        </label>
+      ))}
+    </div>
+  </fieldset>
+);
+
+const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="mt-1 flex items-baseline justify-between gap-4 first:mt-0">
+    <span className="text-base-content/70">{label}</span>
+    <span className="text-right tabular-nums">{children}</span>
+  </div>
+);
+
 const DepositForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
   const id = useId();
   const { usdc, shares } = pool;
+  const { targetNetwork } = useTargetNetwork();
+  const [payWith, setPayWith] = useState<PayWith>("usdc");
+  const [slippageBps, setSlippageBps] = useState(100n);
   const [text, setText] = useState("");
   const [error, setError] = useState<unknown>();
   const [done, setDone] = useState<string>();
-  const amount = parseAmount(text, USDC_DECIMALS);
+  const hbar = payWith === "hbar";
+  const decimals = hbar ? HBAR_DECIMALS : USDC_DECIMALS;
+  const amount = parseAmount(text, decimals);
   const [debounced] = useDebounceValue(amount, PREVIEW_DEBOUNCE_MS);
-  const { deposit } = usePoolWrite(owner);
+  const fresh = amount !== undefined && debounced === amount;
+  const { deposit, depositWithHbar } = usePoolWrite(owner);
+
+  // HBAR path: what SaucerSwap gives for the tinybars, and the least the zap lets it give (Chainlink value less 3%).
+  const zapQuery = { ...POLL.query, enabled: hbar && debounced !== undefined };
+  const quoteRead = useScaffoldReadContract({
+    contractName: "HbarDepositZap",
+    functionName: "quote",
+    args: [hbar ? debounced : undefined],
+    ...POLL,
+    query: zapQuery,
+  });
+  const floorRead = useScaffoldReadContract({
+    contractName: "HbarDepositZap",
+    functionName: "oracleFloor",
+    args: [hbar ? debounced : undefined],
+    ...POLL,
+    query: zapQuery,
+  });
+  const { data: bandBps } = useScaffoldReadContract({
+    contractName: "HbarDepositZap",
+    functionName: "maxSwapDeviationBps",
+    watch: false, // immutable
+  });
+  const quote = hbar && fresh ? quoteRead.data : undefined;
+  const floor = hbar && fresh ? floorRead.data : undefined;
+  const minUsdc = quote !== undefined ? minOutAfterSlippage(quote, slippageBps) : undefined;
+  // The zap raises the caller's minimum to the oracle floor, so this is what the swap must return.
+  const mustGet = minUsdc !== undefined && floor !== undefined ? (floor > minUsdc ? floor : minUsdc) : undefined;
+  const band = bandBps !== undefined ? `${Number(bandBps) / 100}%` : "its band";
+
+  const { data: hbarBalance } = useBalance({
+    address: owner,
+    chainId: targetNetwork.id,
+    query: { enabled: hbar, ...POLL.query },
+  });
+  const { data: gasPrice } = useGasPrice({ chainId: targetNetwork.id, query: { refetchInterval: 60_000 } });
+  const feeReserve = gasPrice ? gasPrice * DEPOSIT_WITH_HBAR_GAS : undefined; // weibars
+  const valueWeibars = hbar && amount !== undefined ? amount * WEIBARS_PER_TINYBAR : undefined;
 
   const { data: preview } = useScaffoldReadContract({
     contractName: "LiquidityPool",
     functionName: "previewDeposit",
-    args: [debounced],
+    args: [hbar ? quote : debounced],
     ...POLL,
   });
 
-  const overBalance = amount !== undefined && usdc.balance !== undefined && amount > usdc.balance;
-  const problem =
-    amountProblem(text, USDC_DECIMALS) ?? // With no USDC at all the helper line already says so (with the faucet link).
-    (overBalance && usdc.balance! > 0n ? `That's more than your ${fmtUsdc(usdc.balance)} USDC.` : undefined);
+  const overBalance = hbar
+    ? valueWeibars !== undefined && hbarBalance !== undefined && valueWeibars + (feeReserve ?? 0n) > hbarBalance.value
+    : amount !== undefined && usdc.balance !== undefined && amount > usdc.balance;
+  // With no USDC or HBAR at all the helper line already says so (with the faucet link).
+  const balanceProblem = !overBalance
+    ? undefined
+    : hbar
+      ? hbarBalance!.value > 0n
+        ? `You have ${fmtHbar(hbarBalance!.value)} HBAR; keep about ${fmtHbar(feeReserve ?? 0n)} HBAR back for the network fee.`
+        : undefined
+      : usdc.balance! > 0n
+        ? `That's more than your ${fmtUsdc(usdc.balance)} USDC.`
+        : undefined;
+  const problem = amountProblem(text, decimals) ?? balanceProblem;
+
+  // Why the zap can't take this amount right now (the price, or SaucerSwap), found before any wallet opens.
+  const zapError = hbar && fresh ? (floorRead.error ?? quoteRead.error ?? undefined) : undefined;
+  const belowFloor = quote !== undefined && floor !== undefined && quote < floor;
   const symbol = shares.symbol ?? "cUSDC-LP";
 
-  const steps: Step[] = [
-    ...associateStep(usdc, "assoc-usdc", "Associate your account with USDC"),
-    ...associateStep(shares, "assoc-shares", `Associate with ${symbol} so you can receive shares`),
-    {
-      key: "approve",
-      label: amount ? `Let the pool take ${fmtUsdc(amount)} USDC` : "Let the pool take your USDC",
-      done: amount !== undefined && usdc.allowance !== undefined && usdc.allowance >= amount,
-      action: "Approve USDC",
-      run: () => usdc.approve(amount!),
-    },
-    {
-      key: "deposit",
-      label: "Deposit",
-      done: false,
-      action: amount ? `Deposit ${fmtUsdc(amount)} USDC` : "Deposit",
-      run: () => deposit(amount!),
-    },
-  ];
+  const steps: Step[] = hbar
+    ? [
+        ...associateStep(shares, "assoc-shares", `Associate with ${symbol} so you can receive shares`),
+        {
+          key: "zap",
+          label: "Swap on SaucerSwap and deposit",
+          done: false,
+          action: amount ? `Swap ${fmt(amount, HBAR_DECIMALS, 4)} HBAR and deposit` : "Swap and deposit",
+          run: () => depositWithHbar(valueWeibars!, minUsdc!),
+        },
+      ]
+    : [
+        ...associateStep(usdc, "assoc-usdc", "Associate your account with USDC"),
+        ...associateStep(shares, "assoc-shares", `Associate with ${symbol} so you can receive shares`),
+        {
+          key: "approve",
+          label: amount ? `Let the pool take ${fmtUsdc(amount)} USDC` : "Let the pool take your USDC",
+          done: amount !== undefined && usdc.allowance !== undefined && usdc.allowance >= amount,
+          action: "Approve USDC",
+          run: () => usdc.approve(amount!),
+        },
+        {
+          key: "deposit",
+          label: "Deposit",
+          done: false,
+          action: amount ? `Deposit ${fmtUsdc(amount)} USDC` : "Deposit",
+          run: () => deposit(amount!),
+        },
+      ];
+
+  const setMax = () => {
+    if (!hbar) {
+      if (usdc.balance) setText(formatUnits(usdc.balance, USDC_DECIMALS));
+    } else if (hbarBalance) {
+      const spendable = hbarBalance.value - (feeReserve ?? 0n);
+      setText(formatUnits(spendable > 0n ? spendable / WEIBARS_PER_TINYBAR : 0n, HBAR_DECIMALS));
+    }
+  };
+
+  // USD per HBAR, 1e18: SaucerSwap's from the quote, Chainlink's back out of the floor.
+  const saucerPrice = quote !== undefined && amount ? (quote * 10n ** 20n) / amount : undefined;
+  const oraclePrice =
+    floor !== undefined && amount && bandBps !== undefined && bandBps < 10_000n
+      ? (floor * 10n ** 20n * 10_000n) / (amount * (10_000n - bandBps))
+      : undefined;
+  const farFromOracle =
+    saucerPrice !== undefined &&
+    !!oraclePrice &&
+    (saucerPrice * 100n > oraclePrice * 105n || saucerPrice * 100n < oraclePrice * 95n);
 
   return (
     <form noValidate onSubmit={e => e.preventDefault()}>
+      <PillChoice
+        legend="Pay with"
+        name={`${id}-pay`}
+        options={[
+          ["usdc", "USDC"],
+          ["hbar", "HBAR via SaucerSwap"],
+        ]}
+        value={payWith}
+        onChange={v => {
+          setPayWith(v);
+          setText("");
+          setError(undefined);
+          setDone(undefined);
+        }}
+      />
+
       <AmountField
         id={`${id}-amount`}
-        label="Amount to deposit"
+        label={hbar ? "HBAR to swap and deposit" : "Amount to deposit"}
         value={text}
         onChange={v => {
           setText(v);
           setDone(undefined);
         }}
-        unit="USDC"
+        unit={hbar ? "HBAR" : "USDC"}
         problem={problem}
-        onMax={usdc.balance ? () => setText(formatUnits(usdc.balance!, USDC_DECIMALS)) : undefined}
-        maxLabel="Deposit all your USDC"
+        onMax={(hbar ? hbarBalance?.value : usdc.balance) ? setMax : undefined}
+        maxLabel={hbar ? "Deposit all your HBAR, less the network fee" : "Deposit all your USDC"}
         helper={
-          usdc.balance === undefined ? (
+          hbar ? (
+            hbarBalance === undefined ? (
+              "Reading your HBAR balance…"
+            ) : hbarBalance.value === 0n ? (
+              <>
+                You have no HBAR.{" "}
+                <a className="link" href={HBAR_FAUCET} target="_blank" rel="noreferrer">
+                  Get testnet HBAR from the Hedera Portal faucet
+                </a>
+                .
+              </>
+            ) : (
+              <>
+                In your wallet: {fmtHbar(hbarBalance.value)} HBAR. SaucerSwap swaps it to USDC and the pool takes the
+                USDC, in one transaction.
+              </>
+            )
+          ) : usdc.balance === undefined ? (
             "Reading your USDC balance…"
           ) : usdc.balance === 0n ? (
             <>
@@ -244,7 +421,7 @@ const DepositForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
               <a className="link" href={USDC_FAUCET} target="_blank" rel="noreferrer">
                 Get testnet USDC from Circle
               </a>{" "}
-              (pick Hedera testnet).
+              (pick Hedera testnet), or pay with HBAR.
             </>
           ) : (
             <>In your wallet: {fmtUsdc(usdc.balance)} USDC</>
@@ -252,20 +429,60 @@ const DepositForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
         }
       />
 
-      <div className="mt-4 rounded-box bg-base-200 p-4 text-sm" aria-live="polite">
-        <div className="flex items-baseline justify-between gap-4">
-          <span className="text-base-content/70">You get about</span>
-          <span className="tabular-nums">
-            {amount && preview !== undefined && debounced === amount
-              ? `${fmt(preview, shares.decimals ?? 6, 4)} ${symbol}`
-              : "—"}
-          </span>
+      {hbar && (
+        <div className="mt-4">
+          <PillChoice
+            legend="Slippage you accept"
+            name={`${id}-slippage`}
+            options={SLIPPAGE_OPTIONS.map(s => [s, `${Number(s) / 100}%`] as const)}
+            value={slippageBps}
+            onChange={setSlippageBps}
+          />
         </div>
-        <div className="mt-1 flex items-baseline justify-between gap-4">
-          <span className="text-base-content/70">Share price</span>
-          <span className="tabular-nums">{fmtUsdc(pool.sharePrice, 4)} USDC</span>
-        </div>
+      )}
+
+      <div className={`rounded-box bg-base-200 p-4 text-sm ${hbar ? "" : "mt-4"}`} aria-live="polite">
+        {hbar && (
+          <>
+            <Row label="SaucerSwap gives about">
+              {quote !== undefined ? `${fmtUsdc(quote, 4)} USDC` : amount && !zapError ? "…" : "—"}
+            </Row>
+            <Row label="The swap must return">{mustGet !== undefined ? `${fmtUsdc(mustGet, 4)} USDC` : "—"}</Row>
+            <p className="mt-1 mb-2 text-xs leading-relaxed text-base-content/60">
+              The larger of the quote less your {Number(slippageBps) / 100}% slippage and the Chainlink value of your
+              HBAR less {band}
+              {floor !== undefined ? ` (${fmtUsdc(floor, 4)} USDC)` : ""}. If SaucerSwap would give less, nothing is
+              swapped.
+            </p>
+          </>
+        )}
+        <Row label="You get about">
+          {amount && preview !== undefined && fresh && (!hbar || quote !== undefined)
+            ? `${fmt(preview, shares.decimals ?? 6, 4)} ${symbol}`
+            : "—"}
+        </Row>
+        <Row label="Share price">{fmtUsdc(pool.sharePrice, 4)} USDC</Row>
       </div>
+
+      {hbar && farFromOracle && (
+        <p className="mt-2 mb-0 text-xs leading-relaxed text-base-content/70">
+          SaucerSwap&apos;s testnet pool prices HBAR at ${fmt(saucerPrice, 18, 4)}, against Chainlink&apos;s $
+          {fmt(oraclePrice, 18, 5)}. Testnet pools are thin. The zap only refuses fills more than {band} below the
+          oracle value, so this one goes through; on mainnet the two track closely.
+        </p>
+      )}
+
+      {zapError && (
+        <p role="alert" className="mt-4 mb-0 rounded-box bg-warning/15 p-4 text-sm leading-relaxed">
+          {poolErrorMessage(zapError, { shareDecimals: shares.decimals, shareSymbol: symbol })}
+        </p>
+      )}
+      {belowFloor && (
+        <p role="alert" className="mt-4 mb-0 rounded-box bg-warning/15 p-4 text-sm leading-relaxed">
+          SaucerSwap would give {fmtUsdc(quote, 4)} USDC, below the zap&apos;s floor of {fmtUsdc(floor, 4)} USDC (the
+          Chainlink value less {band}), so the zap would refuse it. Deposit with USDC instead.
+        </p>
+      )}
 
       <AccountBlocker pool={pool} />
       <ErrorBox error={error} ctx={{ shareDecimals: shares.decimals, shareSymbol: symbol }} />
@@ -277,10 +494,20 @@ const DepositForm = ({ pool, owner }: { pool: PoolState; owner: Address }) => {
 
       <PoolSteps
         steps={steps}
-        disabled={!amount || !!problem || overBalance || blocked(pool)}
+        disabled={
+          !amount ||
+          !!problem ||
+          overBalance ||
+          blocked(pool) ||
+          (hbar && (minUsdc === undefined || !!zapError || belowFloor))
+        }
         onError={setError}
         onDone={() => {
-          setDone(`Deposited ${fmtUsdc(amount)} USDC. Your shares are in your wallet.`);
+          setDone(
+            hbar
+              ? `Swapped ${fmt(amount, HBAR_DECIMALS, 4)} HBAR on SaucerSwap and deposited the USDC. Your shares are in your wallet.`
+              : `Deposited ${fmtUsdc(amount)} USDC. Your shares are in your wallet.`,
+          );
           setText("");
           pool.refetch();
         }}

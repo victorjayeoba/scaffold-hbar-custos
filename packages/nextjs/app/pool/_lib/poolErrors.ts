@@ -12,7 +12,8 @@ import deployedContracts from "~~/contracts/deployedContracts";
 
 /**
  * Turns anything a pool transaction can throw into one sentence a liquidity provider can act on.
- * Covers every custom error in LiquidityPool's ABI, the Hedera token-service failures behind them, and wallet errors.
+ * Covers every custom error in LiquidityPool's and HbarDepositZap's ABIs, the PriceGuard and SaucerSwap refusals a
+ * deposit with HBAR can hit, the Hedera token-service failures behind them, and wallet errors.
  */
 
 export type ErrorContext = {
@@ -89,6 +90,13 @@ const messages = (ctx: ErrorContext): Record<string, (args: readonly unknown[]) 
     LiquidityPool__HtsFailed: ([rc]) =>
       htsCodes[Number(rc)] ?? `Hedera's token service refused the share transfer (response code ${rc}).`,
     LiquidityPool__RefundFailed: () => "The pool couldn't refund the unused HBAR of the token-creation fee.",
+    // HbarDepositZap, and what it calls: PriceGuard for the oracle floor, SaucerSwap for the swap
+    HbarDepositZap__ZeroAmount: () => "Enter an amount of HBAR above zero.",
+    HbarDepositZap__InvalidAddress: () => "The zap was set up with a missing address. This is a deployment problem.",
+    HbarDepositZap__InvalidConfig: () => "The zap was set up with an invalid swap band. This is a deployment problem.",
+    PriceGuard__NotOk: ([status]) =>
+      `Chainlink and Supra are ${Number(status) === 2 ? "too far apart" : "out of date"}, so there's no oracle value to check the swap against and the zap won't deposit. Deposit with USDC, or try again once the prices check out.`,
+    ReentrancyGuardReentrantCall: () => "Another call to the zap is still running. Try again in a moment.",
     // Token transfers through Hedera's token service
     SafeERC20FailedOperation: () =>
       "The USDC transfer was refused by Hedera's token service. Check that your account is associated with USDC, holds enough of it, and has approved the pool for this amount.",
@@ -98,8 +106,13 @@ const messages = (ctx: ErrorContext): Record<string, (args: readonly unknown[]) 
   };
 };
 
-// Hedera response codes that reach the app as revert reasons or messages.
+// Hedera response codes, and SaucerSwap's revert strings (a Uniswap V2 fork), that reach the app as text.
 const hederaCodes: [RegExp, string][] = [
+  [
+    /INSUFFICIENT_OUTPUT_AMOUNT/,
+    "SaucerSwap would return less than your minimum, or more than 3% below the Chainlink value of your HBAR, so nothing was swapped. Get a fresh quote, allow more slippage, or deposit with USDC.",
+  ],
+  [/INSUFFICIENT_LIQUIDITY/, "SaucerSwap's HBAR/USDC pool doesn't have enough liquidity for this amount."],
   [
     /TOKEN_NOT_ASSOCIATED_TO_ACCOUNT/,
     "Your account isn't associated with this token yet. Associate it first (one transaction).",
