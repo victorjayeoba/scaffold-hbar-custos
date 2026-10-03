@@ -1208,6 +1208,30 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hiero-ledger/cryptography@npm:1.22.0":
+  version: 1.22.0
+  resolution: "@hiero-ledger/cryptography@npm:1.22.0"
+  dependencies:
+    "@noble/ciphers": 2.2.0
+    "@noble/curves": 2.2.0
+    "@noble/hashes": 2.2.0
+    "@scure/base": 2.2.0
+    "@scure/bip32": 2.2.0
+    ansi-regex: 6.2.2
+    ansi-styles: 7.0.0
+    asn1js: 3.0.6
+    bignumber.js: 11.1.2
+    bn.js: 5.2.3
+    debug: 4.4.1
+    forge-light: 1.1.4
+    strip-ansi: 7.1.2
+  peerDependenciesMeta:
+    expo-crypto:
+      optional: true
+  checksum: e4594a67fd0343bd98ece162adff8eb630b63a16657ba6776e772215fff8b8633e3459735f7ee99a3d08fdae9bc654d244054e86392d33797f3b6e5478823497
+  languageName: node
+  linkType: hard
+
 "@hiero-ledger/proto@npm:2.31.0":
   version: 2.31.0
   resolution: "@hiero-ledger/proto@npm:2.31.0"
@@ -1248,6 +1272,34 @@ __metadata:
   peerDependencies:
     bn.js: 5.2.3
   checksum: 8d6ad48572eb6f18aff65068af80a07ee42526687ffde668e7d7318ecc0ef568f8a5d1beac67e51f09503ce628f20685d611d82e746d25cd88a158b8f185bef6
+  languageName: node
+  linkType: hard
+
+"@hiero-ledger/sdk@npm:^2.86.2":
+  version: 2.89.1
+  resolution: "@hiero-ledger/sdk@npm:2.89.1"
+  dependencies:
+    "@grpc/grpc-js": 1.12.7
+    "@hiero-ledger/cryptography": 1.22.0
+    "@hiero-ledger/proto": 2.31.0
+    ansi-regex: 6.2.2
+    ansi-styles: 7.0.0
+    bignumber.js: 11.1.2
+    bn.js: 5.2.3
+    crypto-js: 4.2.0
+    debug: 4.4.1
+    ethers: 6.16.0
+    js-base64: 3.7.4
+    long: 5.3.1
+    pino: 10.1.0
+    pino-pretty: 13.0.0
+    protobufjs: 8.6.6
+    rfc4648: 1.5.3
+    strip-ansi: 7.1.2
+    utf8: 3.0.0
+  peerDependencies:
+    bn.js: 5.2.3
+  checksum: 417f32b28fe40c1a18dfacdc5f05e455bba4b12f74652eb2dd2ac77dc6da9be38f0031bd73dc7dfe9359d0ce0c02ac987897a5f142a93b5d7667cd83886373e0
   languageName: node
   linkType: hard
 
@@ -7175,6 +7227,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"hedera-harness@npm:1.2.2":
+  version: 1.2.2
+  resolution: "hedera-harness@npm:1.2.2"
+  dependencies:
+    yaml: ^2.9.0
+  peerDependencies:
+    "@hiero-ledger/sdk": ^2.86.2
+    playwright: ^1.61.1
+  peerDependenciesMeta:
+    "@hiero-ledger/sdk":
+      optional: true
+    playwright:
+      optional: true
+  bin:
+    hedera-harness: dist/index.js
+  checksum: a3033d232d4de0d95da80283a04d313b76c06069b79e61f41034e48fcd1ceb624b5ef03718ea4904f8165cd27a3a25aea925889aa513dde1042a17dbc210eb63
+  languageName: node
+  linkType: hard
+
 "help-me@npm:^5.0.0":
   version: 5.0.0
   resolution: "help-me@npm:5.0.0"
@@ -10145,8 +10216,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "sh@workspace:."
   dependencies:
+    "@hiero-ledger/sdk": ^2.86.2
+    hedera-harness: 1.2.2
     husky: ^9.1.6
     lint-staged: ^15.2.10
+    playwright: 1.63.0
     prettier: 3.8.1
   languageName: unknown
   linkType: soft
@@ -11799,6 +11873,15 @@ __metadata:
   bin:
     yaml: bin.mjs
   checksum: 5ffd9f23bc7a450129cbd49dcf91418988f154ede10c83fd28ab293661ac2783c05da19a28d76a22cbd77828eae25d4bd7453f9a9fe2d287d085d72db46fd105
+  languageName: node
+  linkType: hard
+
+"yaml@npm:^2.9.0":
+  version: 2.9.1
+  resolution: "yaml@npm:2.9.1"
+  bin:
+    yaml: bin.mjs
+  checksum: 583253ce0075cc1b7a4328116380ae2a97d6feb62677ba5d52f7cb774de6e34f1d9e655aaa536347ced55fcaede020253212d1c60c98fc672d43be23ebfcd862
   languageName: node
   linkType: hard
 

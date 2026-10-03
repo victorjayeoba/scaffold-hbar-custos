@@ -37,6 +37,9 @@
     "format": "yarn next:format && yarn foundry:format",
     "lint": "yarn next:lint && yarn foundry:lint",
     "docs:check": "node scripts/check-docs.mjs",
+    "harness:doctor": "hedera-harness doctor .harness/spec.yaml",
+    "harness:validate": "hedera-harness validate .harness/spec.yaml",
+    "harness:run": "hedera-harness run .harness/spec.yaml",
     "next:build": "yarn workspace @sh/nextjs build",
     "next:check-types": "yarn workspace @sh/nextjs check-types",
     "next:dev": "yarn workspace @sh/nextjs dev",
@@ -52,8 +55,11 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "@hiero-ledger/sdk": "^2.86.2",
+    "hedera-harness": "1.2.2",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
+    "playwright": "1.63.0",
     "prettier": "3.8.1"
   },
   "engines": {
