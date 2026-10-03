@@ -2603,7 +2603,7 @@ __metadata:
     "@scaffold-hbar-ui/hooks": ^1.1.0
     "@tailwindcss/postcss": latest
     "@tanstack/react-query": ^5.59.15
-    "@trivago/prettier-plugin-sort-imports": ^4.3.0
+    "@trivago/prettier-plugin-sort-imports": 4.3.0
     "@types/node": ^18.19.50
     "@types/react": ^19.0.7
     abitype: 1.0.6
@@ -2618,7 +2618,7 @@ __metadata:
     next-nprogress-bar: ^2.3.13
     next-themes: ^0.4.6
     postcss: ^8.4.45
-    prettier: ^3.5.3
+    prettier: 3.8.1
     qrcode.react: ^4.0.1
     react: ^19.2.3
     react-dom: ^19.2.3
@@ -3619,7 +3619,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@trivago/prettier-plugin-sort-imports@npm:^4.3.0":
+"@trivago/prettier-plugin-sort-imports@npm:4.3.0":
   version: 4.3.0
   resolution: "@trivago/prettier-plugin-sort-imports@npm:4.3.0"
   dependencies:
@@ -9438,7 +9438,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.5.3":
+"prettier@npm:3.8.1":
   version: 3.8.1
   resolution: "prettier@npm:3.8.1"
   bin:
