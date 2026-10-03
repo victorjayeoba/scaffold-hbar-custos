@@ -10,10 +10,11 @@ Everything below can be checked on HashScan. HashScan opens a transaction from i
 | LiquidityPool | [0.0.10833082](https://hashscan.io/testnet/contract/0.0.10833082) | `0x06061a60D2f9E99410F1D2B310DCF51A1ff2A3b1` |
 | PriceGuard | [0.0.10833074](https://hashscan.io/testnet/contract/0.0.10833074) | `0x293e90142cc9dDF603d9Ab405B43236e8077EF75` |
 | cUSDC-LP share token (HTS, created by the pool) | [0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | `0x0000000000000000000000000000000000a54cc2` |
+| HbarDepositZap (LPs deposit with HBAR via SaucerSwap) | [contract](https://hashscan.io/testnet/contract/0xdD40EBFf88aaDc52B31D9E698803e47B04Ef185C) | `0xdD40EBFf88aaDc52B31D9E698803e47B04Ef185C` |
 
 Source verified on [Sourcify](https://sourcify.dev): LiquidityPool exact match; PerpMarket and PriceGuard match (identical bytecode, source reformatted after the deploy).
 
-Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 ℏ held per run), 36 ℏ reserve. PriceGuard: Chainlink HBAR/USD checked against Supra HBAR/USDT (pair 75), max staleness 7,200 s, max deviation 500 bps. Min collateral 1 USDC. Refuel band 300 bps. Collateral: SaucerSwap testnet USDC 0.0.5449.
+Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 ℏ held per run), 36 ℏ reserve. PriceGuard: Chainlink HBAR/USD checked against Supra HBAR/USDT (pair 75), max staleness 43,200 s (raised from 7,200 s on 3 Oct with [`setParams`](https://hashscan.io/testnet/transaction/0x51cf5b7fd2d41425ba7599b54992e4396cbc04431ea47c6c3ae3ea3e3b6745fc): Chainlink's testnet HBAR/USD goes hours between pushes), max deviation 500 bps. Min collateral 1 USDC. Refuel band 300 bps. Collateral: SaucerSwap testnet USDC 0.0.5449.
 
 ## Every flow, on chain
 
@@ -27,6 +28,7 @@ Keeper: interval 1,800 s, gas limit 3,000,000, gas price 82 tinybar/gas (2.46 �
 | Open with USDC: 2x long, 1 USDC | [`0xd3f325cf…443de8`](https://hashscan.io/testnet/transaction/0xd3f325cf8191e5e197b9af1f45a9ab90173079181724f9f331bb603726443de8) |
 | Close, paid out in USDC | [`0xbaa65216…c61df6`](https://hashscan.io/testnet/transaction/0xbaa65216cdb2988c3164ae25193927e622255133d6866d3c46605d6f83c61df6) |
 | Close straight to HBAR: the USDC payout swapped on SaucerSwap (`closeToHbar`) | [`0x1e427e54…d91c36`](https://hashscan.io/testnet/transaction/0x1e427e54abd7594d815afa933b1dbacb31ec45ca6f5133f9b416801117d91c36) |
+| Deposit with HBAR: 0.5 ℏ swapped to 1.12 USDC on SaucerSwap and deposited for the caller (`HbarDepositZap.depositWithHbar`), 1,114,696 cUSDC-LP minted to them | [`0x3c23d3b3…36ca098`](https://hashscan.io/testnet/transaction/0x3c23d3b3cdf4058d5843f06be3d66af91e35c886af53370437cb5d21636ca098) |
 | Redeem 10 cUSDC-LP, pool burns the shares | [`0x90487242…2d7422`](https://hashscan.io/testnet/transaction/0x9048724259694f86a20fa69aa069a89d3e85045703b0a6f1a9b302d66c2d7422) |
 
 ## The network keeps the market
