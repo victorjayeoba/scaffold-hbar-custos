@@ -1,4 +1,5 @@
 import { KeeperActivity } from "./_components/KeeperActivity";
+import { KeeperAuditLog } from "./_components/KeeperAuditLog";
 import { KeeperHeartbeat } from "./_components/KeeperHeartbeat";
 import { KeeperOracle } from "./_components/KeeperOracle";
 import { KeeperReserve } from "./_components/KeeperReserve";
@@ -17,6 +18,7 @@ const Keeper: NextPage = () => (
     <KeeperReserve />
     <KeeperOracle />
     <KeeperActivity />
+    <KeeperAuditLog />
   </div>
 );
 

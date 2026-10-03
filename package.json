@@ -25,6 +25,7 @@
     "custos:demo:testnet": "yarn workspace @sh/foundry custos demo",
     "custos:revive:testnet": "yarn workspace @sh/foundry custos revive",
     "custos:check-market:testnet": "yarn workspace @sh/foundry custos check-market",
+    "custos:hcs-log:testnet": "yarn workspace @sh/foundry hcs-log",
     "foundry:flatten": "yarn workspace @sh/foundry flatten",
     "foundry:fork": "yarn workspace @sh/foundry fork",
     "foundry:format": "yarn workspace @sh/foundry format",

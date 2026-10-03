@@ -1,0 +1,51 @@
+name: HCS audit log
+
+# Copies the keeper's new events from the mirror node to its HCS topic
+# (packages/foundry/scripts-js/hcsLog.js). Idempotent: it starts after the last
+# event already in the topic. The keeper never depends on this log.
+# Needs repository secrets HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY (the topic's
+# submit key); without them it only does a dry run.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcs-log
+  cancel-in-progress: false
+
+jobs:
+  log:
+    name: Append new keeper events to the topic
+    if: github.repository == 'victorjayeoba/scaffold-hbar-custos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HEDERA_OPERATOR_ID: ${{ secrets.HEDERA_OPERATOR_ID }}
+      HEDERA_OPERATOR_KEY: ${{ secrets.HEDERA_OPERATOR_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Log new events
+        run: |
+          if [ -n "$HEDERA_OPERATOR_ID" ] && [ -n "$HEDERA_OPERATOR_KEY" ]; then
+            yarn custos:hcs-log:testnet
+          else
+            echo "No operator secrets: dry run only."
+            yarn custos:hcs-log:testnet --dry-run
+          fi
