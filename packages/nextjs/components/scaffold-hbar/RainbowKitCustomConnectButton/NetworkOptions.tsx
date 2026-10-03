@@ -1,8 +1,9 @@
 import { useTheme } from "next-themes";
+import { BaseError, UserRejectedRequestError } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 import { ArrowsRightLeftIcon } from "@heroicons/react/24/solid";
 import { getNetworkColor } from "~~/hooks/scaffold-hbar";
-import { getTargetNetworks } from "~~/utils/scaffold-hbar";
+import { getTargetNetworks, notification } from "~~/utils/scaffold-hbar";
 
 const allowedNetworks = getTargetNetworks();
 
@@ -26,7 +27,18 @@ export const NetworkOptions = ({ hidden = false }: NetworkOptionsProps) => {
               className="menu-item btn-sm rounded-xl! flex gap-3 py-3 whitespace-nowrap"
               type="button"
               onClick={() => {
-                switchChain?.({ chainId: allowedNetwork.id });
+                switchChain?.(
+                  { chainId: allowedNetwork.id },
+                  {
+                    // WalletConnect wallets (HashPack, Kabila) only switch to networks they approved when pairing.
+                    onError: error =>
+                      notification.error(
+                        error instanceof BaseError && error.walk(e => e instanceof UserRejectedRequestError)
+                          ? "You cancelled the network switch in your wallet."
+                          : `Your wallet couldn't switch to ${allowedNetwork.name}. Switch network in the wallet itself, then disconnect and connect again.`,
+                      ),
+                  },
+                );
               }}
             >
               <ArrowsRightLeftIcon className="h-6 w-4 ml-2 sm:ml-0" />

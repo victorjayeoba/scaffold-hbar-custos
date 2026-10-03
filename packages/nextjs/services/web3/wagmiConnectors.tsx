@@ -1,3 +1,4 @@
+import { hashpackWallet, kabilaWallet } from "./hederaWallets";
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
 import { rainbowkitBurnerWallet } from "burner-connector";
@@ -17,7 +18,11 @@ export const wagmiConnectors = () => {
 
   const walletGroups = [
     {
-      groupName: "Supported Wallets",
+      groupName: "Hedera wallets",
+      wallets: [hashpackWallet, kabilaWallet],
+    },
+    {
+      groupName: "EVM wallets",
       wallets,
     },
   ];

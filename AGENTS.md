@@ -31,6 +31,7 @@ Use the package manager this project was created with (`packageManager` in the r
 | `packages/nextjs/hooks/custos/` | Contract and mirror-node reads shared by the pages; `poll.ts` holds `POLL` |
 | `packages/nextjs/components/custos/` | Shared Custos components (oracle readout, testnet proof, install command) |
 | `packages/nextjs/utils/custos/` | `perpMath.ts` (the app's previews of contract math, checked by `perpMath.check.mjs`), `testnet.ts` (proof links) |
+| `packages/nextjs/services/web3/` | wagmi config and the connect modal: `wagmiConnectors.tsx` lists the wallets, `hederaWallets.ts` adds HashPack and Kabila (WalletConnect `eip155`, plus the Hedera extension handshake) |
 | `packages/nextjs/contracts/deployedContracts.ts` | Generated ABIs and addresses. Never edit by hand |
 | `packages/nextjs/contracts/externalContracts.ts` | The oracles the app reads directly: `ChainlinkHbarUsd`, `SupraPushOracle` |
 | `packages/nextjs/e2e/` | Playwright smoke test; `routes.ts` lists the routes |
@@ -183,6 +184,7 @@ Verify: `interval()` on the new market, and on `/keeper` the countdown and "ever
 - **Polling.** Every Custos read spreads `POLL` from `hooks/custos/poll.ts` (`watch: false`, refetch every 30 s). The stock template re-reads every block (~2 s), which floods the public relay. New reads must use `POLL` too; constants that never change can be read once.
 - **History comes from the mirror node**, not `eth_getLogs` (the public relay limits log ranges). `useKeeperActivity` reads `/contracts/<id>/results/logs` and `/transactions?account.id=<id>`, decodes logs against the `PerpMarket` ABI, and marks a run as network-executed when the mirror node says `scheduled: true`. Don't infer "the network did it" from the mirror node's `from`: it shows the relay operator.
 - **Writes** simulate first where a revert is likely (see `app/pool/_lib/usePoolWrite.ts`) and pass explicit gas: Hedera's estimates fall short for HTS and HSS calls.
+- **Wallets.** Every write goes through wagmi (`useWriteContract`, `useScaffoldWriteContract`), so it signs with whichever wallet is connected: MetaMask, WalletConnect, the burner, HashPack or Kabila. Keep new write paths on wagmi; don't add a signer-specific path. HashPack and Kabila sign EVM transactions only from ECDSA accounts.
 - **Previews** of contract math live in `utils/custos/perpMath.ts`. If you change a formula in `MarginAccount` or `PerpMarket`, change it there too and run `node --experimental-strip-types utils/custos/perpMath.check.mjs` from `packages/nextjs`.
 - UI: `@scaffold-hbar-ui/components`, DaisyUI classes, the `~~` import alias, `"use client"` for pages that use hooks. Prefer `type` over `interface`.
 

@@ -86,6 +86,7 @@ Mobile layouts: [keeper](docs/images/keeper-mobile.png) · [trade](docs/images/t
 | **Mirror node** | The `/keeper` and `/pool` histories (logs plus which transactions were `scheduled`), HTS association status. | For the app |
 | **Chainlink** HBAR/USD | The price for every open, close, liquidation and refuel. | Yes |
 | **Supra** HBAR/USDT (pair 75) | The cross-check. If it is stale or more than 5% from Chainlink, nothing opens and nothing is liquidated. | Yes: no Supra, no `Ok` price |
+| **HashPack, Kabila** | Connect and sign every write in the app over WalletConnect `eip155:296`, next to MetaMask. Wired in `services/web3/hederaWallets.ts`. | No: any EVM wallet works too |
 | **SaucerSwap V1** | `openWithHbar`, `closeToHbar`, and the keeper's refuel (USDC from the pool to HBAR). | No: optional. Deploy with a zero router and the USDC paths work alone. |
 
 ## How it works
@@ -249,6 +250,15 @@ Open [localhost:3000/keeper](http://localhost:3000/keeper). The first network ru
 
 With npm, put `--` before flags meant for a script: `npm run custos:deploy:testnet -- --market ETH-USD`.
 
+### Wallets
+
+**Connect Wallet** offers two groups:
+
+- **Hedera wallets: HashPack and Kabila.** They pair over WalletConnect's `eip155` namespace (Hedera testnet is `eip155:296`), so they sign the same wagmi calls as any EVM wallet: open, open with HBAR, add collateral, close, close to HBAR, USDC association and approval, pool deposit, withdraw and redeem, and keeper `fund()` and `revive()`. With the browser extension installed, choosing the wallet hands it the pairing request directly (the Hedera extension handshake, no extra package). Without it, scan the QR code with the phone app. The header shows the account as its Hedera ID (0.0.x) and its EVM address.
+- **EVM wallets:** MetaMask and any WalletConnect wallet. The burner wallet is under Development.
+
+Use an **ECDSA** account. EVM signing needs one; an ED25519 account has no EVM key. The WalletConnect project id in `packages/nextjs/scaffold.config.ts` is a shared default: set `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` to your own (free at cloud.reown.com) before you deploy.
+
 ## HIP-1215, learned the hard way
 
 Each item was hit or measured on testnet, and each one is handled in the code.
@@ -408,6 +418,7 @@ Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:bui
 - **Funding is linear and simple** (skew / pool assets); no price impact, no borrow fee.
 - **The keeper's HBAR can't be withdrawn.** It only pays for network runs; redeploying leaves the old reserve behind.
 - **The owner can tune, not take.** PerpMarket's owner can only correct the gas-price estimate; PriceGuard's owner can only move staleness and deviation within hard bounds; the pool's owner links the market and creates the share token once each.
+- **HashPack signing is not tested yet.** The Playwright test `packages/nextjs/e2e/wallets.spec.ts` checks that HashPack and Kabila are listed and that choosing one starts a WalletConnect pairing and hands it to the extension; nobody has yet signed a transaction from a real HashPack or Kabila wallet through this app. Blade isn't offered: the WalletConnect registry lists its EVM support for Ethereum only, not Hedera.
 - **Testnet assets.** USDC 0.0.5449 is SaucerSwap's testnet token. The code is built and tested for testnet.
 
 ## Extending it
