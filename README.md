@@ -427,7 +427,7 @@ Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:bui
 
 | Tier | Check | Where |
 | --- | --- | --- |
-| 0 | ETH-USD in `markets.json` with the right Chainlink feed and Supra pair 19, HBAR-USD untouched, `test/markets/EthUsdMarket.t.sol` exists and reads `markets.json`, `AGENTS.md` names `markets.json` and `check-market`, the README table has `HBAR-USD` and `ETH-USD` rows, no env file | [`.harness/validators/static.json`](.harness/validators/static.json) | <!-- drift-ignore -->
+| 0 | ETH-USD in `markets.json` with the right Chainlink feed and Supra pair 19, HBAR-USD untouched, `test/markets/EthUsdMarket.t.sol` exists and reads `markets.json`, `AGENTS.md` names `markets.json` and `check-market`, the README table has `HBAR-USD` and `ETH-USD` rows, no root or app env file | [`.harness/validators/static.json`](.harness/validators/static.json) | <!-- drift-ignore -->
 | 1 | Install, offline market check, the ETH test, all Foundry tests, lint, types, build | [`.harness/validators/yarn.json`](.harness/validators/yarn.json) |
 | 2 | `/`, `/keeper`, `/trade`, `/pool`, `/debug` render without an application error | [`.harness/validators/playwright-smoke.yaml`](.harness/validators/playwright-smoke.yaml) |
 | 3 | The keeper, trade, pool and debug pages still show live HBAR-USD data | [`acceptance-contract.json`](.harness/acceptance-contract.json) |
