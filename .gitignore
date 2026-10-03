@@ -26,3 +26,4 @@ dist
 
 # hedera-harness run artifacts
 .harness/runs/
+.harness/runtime/
