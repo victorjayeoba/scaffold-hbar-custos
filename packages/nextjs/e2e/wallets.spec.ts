@@ -26,7 +26,8 @@ test("HashPack is offered and pairs over WalletConnect", async ({ page }) => {
   await expect(dialog.getByRole("button", { name: /Kabila \(Hedera\)/ })).toBeVisible();
   await dialog.getByRole("button", { name: /HashPack \(Hedera\)/ }).click();
 
-  await expect(dialog.getByText(/Scan with HashPack/)).toBeVisible();
+  // The QR appears once WalletConnect's relay hands back a pairing URI, which can take a while.
+  await expect(dialog.getByText(/Scan with HashPack/)).toBeVisible({ timeout: 60_000 });
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { paired: string[] }).paired))
     .toEqual([expect.stringMatching(/^wc:[0-9a-f]+@2\?/)]);
