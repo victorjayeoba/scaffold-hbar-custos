@@ -118,7 +118,7 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 | Gas limit per tick (testnet deploy) | 3,000,000 |
 | Gas price | 82 tinybar/gas (measured inside a scheduled run) |
 | **Held up front per run** | **2.46 ℏ**: the reserve must hold at least this or Hedera won't start the run |
-| **Charged per run** | **Gas used × gas price**, not the limit. First tick of the final deploy: 1,618,265 gas used of 3,000,000, charged **1.359 ℏ** at 84 tinybar/gas (swept 2 positions, accrued funding, booked the next tick). On the previous deploy a tick that liquidated a position used 1.61M gas and was charged 1.755 ℏ at ~109 tinybar/gas. |
+| **Charged per run** | **Gas used × gas price**, not the limit. Final deploy, ticks 1–3 (funding + a 2-position sweep + booking the next tick): 1.58–1.62M gas, **1.31–1.36 ℏ**. Tick 4, which also **liquidated** a position: 2,385,537 gas, **1.98 ℏ**, still inside the 3M limit. |
 | Failed start (reserve too low) | 0.018 ℏ, and the chain stops until `fund()` + `revive()` |
 | Per day at a 30 min interval | 48 runs × ~1.36 ℏ ≈ 65 ℏ charged |
 | Testnet reserve at deploy | 36 ℏ: `runsLeft()` says 14 (each counted at the full 2.46 ℏ hold); at ~1.36 ℏ actually charged it lasts ~25 runs, ~12 h |

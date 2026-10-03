@@ -1,6 +1,6 @@
 {
   "name": "custos-eth-usd-market-static",
-  "description": "ETH-USD is in markets.json with the right feeds, HBAR-USD is untouched, the ETH test exists where AGENTS.md puts it, the README lists the market, and no env file is in the workspace.",
+  "description": "ETH-USD is in markets.json with the right feeds, HBAR-USD is untouched, the ETH test exists where AGENTS.md puts it, the README lists the market, and no root or app env file is in the workspace. (packages/foundry/.env is allowed: the template's postinstall copies it from .env.example, and it holds no secrets.)",
   "jsonAssertions": [
     { "file": "package.json", "path": "packageManager", "equals": "yarn@3.2.3" },
     { "file": "packages/foundry/package.json", "path": "name", "equals": "@sh/foundry" }
@@ -19,8 +19,7 @@
     "forbidden": [
       ".env",
       "packages/nextjs/.env",
-      "packages/nextjs/.env.local",
-      "packages/foundry/.env"
+      "packages/nextjs/.env.local"
     ]
   },
   "textAssertions": [

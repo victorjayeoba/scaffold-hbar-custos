@@ -6,7 +6,7 @@
   "commands": [
     { "name": "install", "command": "yarn install", "timeoutMs": 600000, "purpose": "Install workspace dependencies." },
     { "name": "markets-config", "command": "yarn workspace @sh/foundry check-markets ETH-USD", "timeoutMs": 60000, "purpose": "markets.json has ETH-USD, and every market is inside the limits PriceGuard enforces." },
-    { "name": "eth-usd-test", "command": "yarn workspace @sh/foundry test --match-path test/markets/EthUsdMarket.t.sol", "timeoutMs": 600000, "purpose": "The ETH-specific test: sizing in ETH units, liquidation by the network, a profitable short." },
+    { "name": "eth-usd-test", "command": "node -e \"require('fs').statSync('packages/foundry/test/markets/EthUsdMarket.t.sol')\" && yarn workspace @sh/foundry test --match-path test/markets/EthUsdMarket.t.sol", "timeoutMs": 600000, "purpose": "The ETH-specific test: sizing in ETH units, liquidation by the network, a profitable short. Fails if the file is missing (forge treats no matching tests as success)." },
     { "name": "foundry-test", "command": "yarn foundry:test", "timeoutMs": 900000, "purpose": "Every contract test and invariant, including Markets.t.sol, which cycles every market in markets.json." },
     { "name": "foundry-lint", "command": "yarn foundry:lint", "timeoutMs": 180000, "purpose": "forge fmt and prettier checks for the contracts package." },
     { "name": "next-check-types", "command": "yarn next:check-types", "timeoutMs": 300000, "purpose": "The app still type-checks against the contract ABIs." },
