@@ -1,21 +1,21 @@
 diff --git a/README.md b/README.md
-index 679d15d..95e4a84 100644
+index 776810a..51fd8af 100644
 --- a/README.md
 +++ b/README.md
 @@ -312,6 +312,7 @@ The gas limit decides how much HBAR must sit in the reserve; the work done decid
  | Market | Chainlink feed (8 dp) | Supra pair | Max staleness | Max deviation |
  | --- | --- | --- | --- | --- |
- | HBAR-USD | `0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a` | 75 | 7200 s | 500 bps |
+ | HBAR-USD | `0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a` | 75 | 43200 s | 500 bps |
 +| ETH-USD | `0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9` | 19 | 86400 s (testnet; ~3600 s on mainnet) | 500 bps |
  
  **Deploy-time variables**, read by `scripts-js/custos.js` from the shell environment (it does not load `packages/foundry/.env`):
  
 diff --git a/packages/foundry/markets.json b/packages/foundry/markets.json
-index 5201c62..283b06e 100644
+index c9a5b85..24d520b 100644
 --- a/packages/foundry/markets.json
 +++ b/packages/foundry/markets.json
 @@ -6,5 +6,13 @@
-     "maxStaleness": 7200,
+     "maxStaleness": 43200,
      "maxDeviationBps": 500,
      "refPrice8": 12000000
 +  },
