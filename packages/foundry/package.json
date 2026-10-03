@@ -20,7 +20,8 @@
     "verify:mainnet": "forge verify-contract --chain-id 295 --verifier sourcify",
     "postinstall": "shx cp -n .env.example .env",
     "custos": "node scripts-js/custos.js",
-    "check-markets": "node scripts-js/checkMarkets.js"
+    "check-markets": "node scripts-js/checkMarkets.js",
+    "hcs-log": "node scripts-js/hcsLog.js"
   },
   "dependencies": {
     "dotenv": "~16.3.1",

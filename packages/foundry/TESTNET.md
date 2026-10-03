@@ -42,6 +42,12 @@ Each tick is executed by the Schedule Service from a schedule the previous tick 
 | 3 | [`0xcaaa44b5…0e38aef3`](https://hashscan.io/testnet/transaction/0xcaaa44b5a61366f099f2d334c571e1d578b198357ea07dc56c350c980e38aef3) (1790986794.024) | Funding, sweep (none underwater), booked tick 4. 1.315 ℏ for 1,584,087 gas |
 | 4 | [`0x7c37d2a7…8dde59a9`](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) (1790988593.014) | **Liquidated** the 50x short `0xebBA…F393` at $0.10277 (its liquidation price was $0.10266): `Liquidated(byNetwork = true, by = 0x0, reward = 0)`, all collateral to the pool. Nobody signed it. 1.980 ℏ for 2,385,537 gas |
 
+Tick 18 ([`0x963bf611…0ec8303`](https://hashscan.io/testnet/transaction/0x963bf611a22de64c060b62a5b5267e425af1d5b4e180c9f22aa84a65b0ec8303), 1791013775.07) **liquidated the other demo position**, the 50x long `0xA807…6Ec6`, at $0.10062 (its liquidation price was $0.10083): `byNetwork = true`, `reward = 0`. Ticks 12–16 ran while Chainlink's testnet feed was hours old and **skipped the sweep** (`SweepSkipped(Stale)`): the keeper refuses to liquidate at a stale price, exactly as designed.
+
+### The same history on HCS
+
+Every keeper event is mirrored to HCS topic [0.0.10839050](https://hashscan.io/testnet/topic/0.0.10839050) by `scripts-js/hcsLog.js` (see CONTRACTS_NOTES §6b). Its first 38 messages cover ticks 1–18: message #7 is the tick-4 liquidation and #36 the tick-18 one.
+
 ## Earlier deploy: the first liquidation nobody signed (2026-09-29)
 
 The first version (PerpMarket [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) proved the whole loop. Every tick below was executed by the Schedule Service from a schedule the previous tick booked.
