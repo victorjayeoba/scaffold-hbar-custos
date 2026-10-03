@@ -10147,6 +10147,7 @@ __metadata:
   dependencies:
     husky: ^9.1.6
     lint-staged: ^15.2.10
+    prettier: 3.8.1
   languageName: unknown
   linkType: soft
 

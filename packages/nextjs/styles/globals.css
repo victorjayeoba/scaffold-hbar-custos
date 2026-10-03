@@ -192,7 +192,13 @@
   transform: rotateX(90deg);
   border: 1px solid rgb(232 220 255 / 0.55);
   background:
-    linear-gradient(to right, transparent 22%, rgb(94 234 212 / 0.75) 22%, rgb(94 234 212 / 0.75) calc(22% + 1px), transparent calc(22% + 1px)),
+    linear-gradient(
+      to right,
+      transparent 22%,
+      rgb(94 234 212 / 0.75) 22%,
+      rgb(94 234 212 / 0.75) calc(22% + 1px),
+      transparent calc(22% + 1px)
+    ),
     linear-gradient(118deg, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0) 35%),
     linear-gradient(118deg, #5a46ff 0%, #3b2cf0 45%, #2a1fd6 100%);
   opacity: 0.72;

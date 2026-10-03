@@ -63,6 +63,8 @@ else
   check install npm install --legacy-peer-deps
 fi
 check lint run lint
+# next lint exits 0 on warnings; CI's lint.yaml fails on them, so the scaffold must too.
+check next-lint-no-warnings run next:lint --max-warnings=0
 check check-types run next:check-types
 check doc-drift node scripts/check-docs.mjs
 check forge-build bash -c "cd packages/foundry && forge build"
