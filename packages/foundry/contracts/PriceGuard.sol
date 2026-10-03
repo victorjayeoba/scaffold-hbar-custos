@@ -26,6 +26,9 @@ contract PriceGuard is Ownable {
     /// @notice Upper bounds on what the owner may set, so a guard can never be configured to wave every price through.
     uint256 public constant MAX_STALENESS_LIMIT = 1 days;
     uint256 public constant MAX_DEVIATION_LIMIT_BPS = 2_000;
+    /// @notice A feed timestamp more than this far ahead of the block is treated as bogus (stale). Hedera's real skew
+    ///         is the ~2 s block-start lag; Supra's millisecond times round down.
+    uint256 public constant MAX_FUTURE_SKEW = 300;
 
     IAggregatorV3 public immutable chainlink;
     ISupraSValueFeed public immutable supra;
@@ -74,14 +77,18 @@ contract PriceGuard is Ownable {
         (, s,,,) = read();
     }
 
-    /// @notice Both feeds scaled to 1e18 (0 for a feed that is unavailable) and the status. Never reverts.
-    /// @dev The market uses this to settle a close at the price worse for the trader when the feeds disagree.
+    /// @notice Both feeds scaled to 1e18, and the status. A feed that is unavailable **or older than
+    ///         `maxStaleness`** reads 0, so a caller can never act on an old price by mistake. Never reverts.
+    /// @dev The market uses this to settle a close when the price isn't `Ok`: at the worse of the fresh feeds, or not
+    ///      at all if neither is fresh.
     function prices() external view returns (uint256 chainlinkPrice, uint256 supraPrice, Status status_) {
         uint256 chainlinkAt;
         uint256 supraAt;
         (chainlinkPrice, chainlinkAt) = _readChainlink();
         (supraPrice, supraAt) = _readSupra();
         status_ = _status(chainlinkPrice, supraPrice, chainlinkAt, supraAt);
+        if (_isStale(chainlinkAt)) chainlinkPrice = 0;
+        if (_isStale(supraAt)) supraPrice = 0;
     }
 
     /// @notice Everything the UI shows. Never reverts: a feed that fails to answer reads as `Stale`.
@@ -121,6 +128,8 @@ contract PriceGuard is Ownable {
         return diff * BPS / chainlinkPrice;
     }
 
+    /// @dev No `answeredInRound` check: Chainlink deprecated it for its OCR feeds (it always equals `roundId`).
+    ///      Freshness is judged from `updatedAt` against `maxStaleness`, which covers a feed that stops updating.
     function _readChainlink() internal view returns (uint256 p, uint256 at) {
         try chainlink.latestRoundData() returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80) {
             // an answer too large to scale is as useless as no answer: read it as unavailable, never revert
@@ -147,7 +156,8 @@ contract PriceGuard is Ownable {
     }
 
     function _isStale(uint256 at) internal view returns (bool) {
-        return at == 0 || (block.timestamp > at && block.timestamp - at > maxStaleness);
+        if (at == 0 || at > block.timestamp + MAX_FUTURE_SKEW) return true;
+        return block.timestamp > at && block.timestamp - at > maxStaleness;
     }
 
     function _setParams(uint256 maxStaleness_, uint256 maxDeviationBps_) internal {
