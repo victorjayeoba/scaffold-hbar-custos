@@ -36,6 +36,9 @@ Each tick is executed by the Schedule Service from a schedule the previous tick 
 | Tick | Executed | What it did |
 | --- | --- | --- |
 | 1 | [`0x5bebf1d8…0038f6`](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) (schedule [0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097), 1790983197.030564046) | Accrued funding, swept the 2 open positions (none underwater), recorded the gas price it ran at (84 tinybar/gas), booked tick 2. Paid by the market itself: 1.359 ℏ for 1,618,265 gas |
+| 2 | [`0x756e4e8e…8c518a`](https://hashscan.io/testnet/transaction/0x756e4e8e11bf69370a543a2d518e905c868aca2361ba606455b803140a8c518a) (1790984996.012) | Funding, sweep (none underwater), booked tick 3. 1.327 ℏ for 1,580,037 gas |
+| 3 | [`0xcaaa44b5…0e38aef3`](https://hashscan.io/testnet/transaction/0xcaaa44b5a61366f099f2d334c571e1d578b198357ea07dc56c350c980e38aef3) (1790986794.024) | Funding, sweep (none underwater), booked tick 4. 1.315 ℏ for 1,584,087 gas |
+| 4 | [`0x7c37d2a7…8dde59a9`](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) (1790988593.014) | **Liquidated** the 50x short `0xebBA…F393` at $0.10277 (its liquidation price was $0.10266): `Liquidated(byNetwork = true, by = 0x0, reward = 0)`, all collateral to the pool. Nobody signed it. 1.980 ℏ for 2,385,537 gas |
 
 ## Earlier deploy: the first liquidation nobody signed (2026-09-29)
 
