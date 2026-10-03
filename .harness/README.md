@@ -34,6 +34,8 @@ The chain tier needs Foundry (`forge`, `cast`) on the PATH. The harness creates 
 
 ## How the recipe was verified
 
+**CI proves it both ways on every push to `main`.** [`.github/workflows/harness.yaml`](../.github/workflows/harness.yaml) runs on Ubuntu with no secrets: `yarn harness:validate` on `main` as shipped must fail, and fail for the missing ETH-USD market; then it applies `reference/eth-usd.patch` and `yarn harness:validate` must pass, Playwright tier included. (The chain tier and the agent tiers need an operator account and an agent, so they run only under `yarn harness:run`.)
+
 **The recipe parses.** `hedera-harness doctor .harness/spec.yaml --recipe-only`:
 
 ```
@@ -41,7 +43,7 @@ The chain tier needs Foundry (`forge`, `cast`) on the PATH. The harness creates 
 Ready to run.
 ```
 
-**A reference implementation passes.** Before handing the task to an agent, we solved the PRD by hand, on top of `main`, in three files (it isn't kept in this repo; the template ships without ETH-USD on purpose, so the recipe has something to do):
+**A reference implementation passes.** Before handing the task to an agent, we solved the PRD by hand, on top of `main`, in three files. It is kept as a patch, [`reference/eth-usd.patch`](reference/eth-usd.patch), and not applied: the template ships without ETH-USD on purpose, so the recipe has something to do. `git apply .harness/reference/eth-usd.patch` adds:
 
 - `packages/foundry/markets.json`: one new entry next to HBAR-USD:
   ```json

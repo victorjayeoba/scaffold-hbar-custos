@@ -1,0 +1,96 @@
+name: Harness
+
+# Proves the Hedera Harness recipe in .harness/ both ways, with no secrets and no
+# testnet access (tiers 0–2: static checks, yarn commands, Playwright smoke):
+#   1. On main as shipped (no ETH-USD market), `yarn harness:validate` must FAIL,
+#      and fail for the missing feature.
+#   2. With the reference solution applied (.harness/reference/eth-usd.patch: the
+#      markets.json entry, the ETH test and the README row), it must PASS.
+# The chain tier (3.5) and the agent tiers need an operator account and an agent,
+# so they run only under `yarn harness:run`; see .harness/README.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  both-ways:
+    name: Validators fail without the feature, pass with it
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Install Chromium for the Playwright tier
+        run: yarn playwright install --with-deps chromium
+
+      - name: Check the recipe
+        run: yarn harness:doctor --recipe-only
+
+      - name: "Without the feature: validate must fail"
+        run: |
+          set +e
+          yarn harness:validate 2>&1 | tee without.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ] || ! grep -q '^passed=false' without.log; then
+            echo "::error::harness:validate passed on main, but main ships without ETH-USD: the validators are not checking the feature"
+            exit 1
+          fi
+          if ! grep -q 'markets.json to contain ""ETH-USD""' without.log; then
+            echo "::error::harness:validate failed on main, but not for the missing ETH-USD market"
+            exit 1
+          fi
+          echo "Failed as expected:"
+          grep -E '^(passed|findings)=|^- ' without.log
+
+      - name: Apply the reference solution
+        run: git apply .harness/reference/eth-usd.patch
+
+      - name: "With the feature: validate must pass"
+        run: |
+          set +e
+          yarn harness:validate 2>&1 | tee with.log
+          status=${PIPESTATUS[0]}
+          set -e
+          grep -E '^(passed|findings|playwrightGate)=|^- |^command ' with.log || true
+          if [ "$status" -ne 0 ] || ! grep -q '^passed=true' with.log; then
+            echo "::error::harness:validate failed with the reference solution applied"
+            exit 1
+          fi
+
+      - name: Upload the validate logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-validate-logs
+          path: |
+            without.log
+            with.log
+          if-no-files-found: ignore
+          retention-days: 7
