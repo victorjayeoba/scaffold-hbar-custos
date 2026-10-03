@@ -139,6 +139,16 @@ So the gas limit decides how much HBAR must sit in the reserve, and the work act
 
 Proof transactions are listed in [`TESTNET.md`](TESTNET.md).
 
+## 6b. Audit log on HCS
+
+Every keeper event is also written to a Hedera Consensus Service topic, [0.0.10839050](https://hashscan.io/testnet/topic/0.0.10839050), as a tamper-evident audit trail anyone can read without an RPC node.
+
+- **Off the critical path.** Contracts can't write to HCS, so `scripts-js/hcsLog.js` does it off-chain: it reads PerpMarket's `Ticked`, `Swept`, `SweepSkipped`, `Liquidated` and `Refueled` events from the mirror node and submits one compact JSON message per event. **The keeper never depends on it.** If the logger stops, the network keeps ticking and liquidating; the log just falls behind until the next run catches it up.
+- **Checkable.** Each message carries the event's consensus timestamp, log index and transaction hash, plus the run number and the event's fields, e.g. `{"v":1,"e":"Liquidated","ts":"1790988593.014063613","i":2,"tx":"0x7c37…59a9","run":4,"trader":"0xeBbA…F393","price":"0.10277004","byNetwork":true,"by":"0x0000…0000","reward":"0.0"}`. Anyone can verify a message against HashScan, or rebuild the whole log from the chain with `--dry-run`.
+- **Idempotent.** The script reads the last logged event back from the topic itself and starts after it; re-running logs nothing twice. Only the operator's key can submit to the topic.
+- **Run it:** `yarn workspace @sh/foundry hcs-log` (`--create` once to make the topic and record it in `deployments/296.json` as `hcsTopic`; `--dry-run` needs no keys). Operator from the environment only: `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`.
+- **Cost:** about $0.01 to create the topic and $0.0001 per message.
+
 ## 7. Error codes and what to do
 
 | Error (selector) | Means | Fix |
