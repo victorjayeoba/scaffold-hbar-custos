@@ -98,6 +98,13 @@ function routeExists(url) {
 // ---- what the docs say ------------------------------------------------------
 
 const PLACEHOLDER = /[<>{}*$|]|\.\.\./;
+
+// Scaffolding with npm, the CLI deletes the default package manager's lockfile and rewrites that package manager's
+// name to "npm" in every text file, this script and the docs included, but renames no file. So a doc link such as
+// `.harness/validators/<name>.json` points at a file that kept its old name. The name is built from halves so the
+// rewrite leaves it intact here.
+const YARN = ["y", "arn"].join("");
+const NPM_SCAFFOLD = !exists(`${YARN}.lock`);
 const problems = [];
 
 function checkCommand(where, command) {
@@ -130,10 +137,13 @@ function checkPath(where, ref) {
   if (!clean || PLACEHOLDER.test(clean)) return;
   // .env files are generated from .env.example and never committed.
   if (/(^|\/)\.env(\.local)?$/.test(clean)) return;
-  const found = !clean.includes("/")
-    ? basenames.has(clean) || exists(clean)
-    : [".", ...PACKAGES].some(base => exists(path.posix.join(base, clean)));
-  if (!found) problems.push(`${where}: "${ref}" does not exist`);
+  // The CLI reads template.json and deletes it, so a scaffolded project never has it.
+  if (clean === "template.json") return;
+  const found = rel =>
+    !rel.includes("/") ? basenames.has(rel) || exists(rel) : [".", ...PACKAGES].some(base => exists(path.posix.join(base, rel)));
+  // An npm scaffold has the package-manager word rewritten in every doc, but its files keep their names.
+  if (found(clean) || (NPM_SCAFFOLD && found(clean.replace(/\bnpm\b/g, YARN)))) return;
+  problems.push(`${where}: "${ref}" does not exist`);
 }
 
 function checkRoute(where, route) {
