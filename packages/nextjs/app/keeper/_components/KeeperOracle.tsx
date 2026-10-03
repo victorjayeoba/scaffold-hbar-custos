@@ -3,7 +3,7 @@
 import { formatUnits } from "viem";
 import { POLL } from "~~/hooks/custos/poll";
 import { ago, useNow } from "~~/hooks/custos/useNow";
-import { usePriceFeeds } from "~~/hooks/custos/usePriceFeeds";
+import { fmtMaxAge, usePriceFeeds } from "~~/hooks/custos/usePriceFeeds";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-hbar";
 
 // PriceGuard.Status
@@ -24,26 +24,16 @@ const STATUS = [
 /** What PriceGuard says right now: the price every check uses, and whether the keeper may liquidate at it. */
 export const KeeperOracle = () => {
   const now = useNow();
-  const { supra } = usePriceFeeds();
+  // The limits and the Supra pair come from PriceGuard itself (usePriceFeeds reads them there).
+  const { supra, maxStaleness: maxAge, maxDeviationBps } = usePriceFeeds();
   const { data: guard, isError } = useScaffoldReadContract({
     contractName: "PriceGuard",
     functionName: "read",
     ...POLL,
   });
-  const { data: maxStaleness } = useScaffoldReadContract({
-    contractName: "PriceGuard",
-    functionName: "maxStaleness",
-    ...POLL,
-  });
-  const { data: maxDeviationBps } = useScaffoldReadContract({
-    contractName: "PriceGuard",
-    functionName: "maxDeviationBps",
-    ...POLL,
-  });
 
   const [price, status, chainlinkAt, supraAt, deviationBps] = guard ?? [];
   const verdict = status !== undefined ? STATUS[status] : undefined;
-  const maxAge = maxStaleness !== undefined ? Number(maxStaleness) : undefined;
 
   const feeds = [
     {
@@ -96,10 +86,10 @@ export const KeeperOracle = () => {
                 className={`progress mt-4 h-1.5 w-full ${stale ? "progress-error" : "progress-success"}`}
                 value={age !== undefined && maxAge ? Math.min(age, maxAge) : undefined}
                 max={maxAge ?? 1}
-                aria-label={`${feed.name} age, out of the ${maxAge ? maxAge / 60 : "…"} minute limit`}
+                aria-label={`${feed.name} age, out of the ${maxAge ? fmtMaxAge(maxAge) : "…"} limit`}
               />
               <div className="mt-1 text-xs text-base-content/55">
-                max age {maxAge !== undefined ? `${maxAge / 60} min` : "…"}
+                max age {maxAge !== undefined ? fmtMaxAge(maxAge) : "…"}
               </div>
             </div>
           );
@@ -122,14 +112,14 @@ export const KeeperOracle = () => {
             className={`progress mt-4 h-1.5 w-full ${status === 2 ? "progress-error" : "progress-success"}`}
             value={
               deviationBps !== undefined && maxDeviationBps
-                ? Number(deviationBps > maxDeviationBps ? maxDeviationBps : deviationBps)
+                ? Math.min(Number(deviationBps), maxDeviationBps)
                 : undefined
             }
-            max={maxDeviationBps ? Number(maxDeviationBps) : 1}
+            max={maxDeviationBps || 1}
             aria-label="How far apart the feeds are, out of the limit"
           />
           <div className="mt-1 text-xs text-base-content/55">
-            limit {maxDeviationBps !== undefined ? `${Number(maxDeviationBps) / 100}%` : "…"}
+            limit {maxDeviationBps !== undefined ? `${maxDeviationBps / 100}%` : "…"}
           </div>
         </div>
       </div>

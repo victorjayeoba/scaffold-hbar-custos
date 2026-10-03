@@ -1,25 +1,25 @@
 "use client";
 
 import { ago, useNow } from "~~/hooks/custos/useNow";
-import { MAX_DEVIATION_BPS, MAX_STALENESS_SECONDS, usePriceFeeds } from "~~/hooks/custos/usePriceFeeds";
+import { fmtMaxAge, usePriceFeeds } from "~~/hooks/custos/usePriceFeeds";
 
-const verdict = {
-  loading: { text: "Reading both feeds on Hedera testnet…", tone: "text-base-content/60" },
-  ok: { text: "Prices agree. Trading and liquidations are open.", tone: "text-success" },
-  stale: {
-    text: "A feed is more than two hours old. The market is close-only and the keeper skips liquidations.",
-    tone: "text-warning",
-  },
-  deviated: {
-    text: "The feeds disagree by more than 5%. The market is close-only and the keeper skips liquidations.",
-    tone: "text-error",
-  },
-} as const;
+const ending = "The market is close-only and the keeper skips liquidations.";
+/** What PriceGuard's rule says, with its limits as read from the contract ("…" until they load). */
+const verdictFor = (status: ReturnType<typeof usePriceFeeds>["status"], maxAge: string, maxDev: string) =>
+  ({
+    loading: { text: "Reading both feeds on Hedera testnet…", tone: "text-base-content/60" },
+    ok: { text: "Prices agree. Trading and liquidations are open.", tone: "text-success" },
+    stale: { text: `A feed is more than ${maxAge} old. ${ending}`, tone: "text-warning" },
+    deviated: { text: `The feeds disagree by more than ${maxDev}. ${ending}`, tone: "text-error" },
+  })[status];
 
 /** Live Chainlink and Supra prices, and the rule PriceGuard applies to them. */
 export const OracleReadout = () => {
   const now = useNow();
-  const { chainlink, supra, deviationBps, status } = usePriceFeeds();
+  const { chainlink, supra, deviationBps, status, maxStaleness, maxDeviationBps } = usePriceFeeds();
+  const maxAge = maxStaleness !== undefined ? fmtMaxAge(maxStaleness) : "…";
+  const maxDev = maxDeviationBps !== undefined ? `${maxDeviationBps / 100}%` : "…";
+  const verdict = verdictFor(status, maxAge, maxDev);
 
   const rows = [
     { name: "Chainlink", pair: "HBAR / USD", role: "The price every trade and liquidation uses", feed: chainlink },
@@ -44,13 +44,13 @@ export const OracleReadout = () => {
           </div>
         ))}
       </dl>
-      <p className={`mt-4 mb-0 ${verdict[status].tone}`}>
-        {verdict[status].text}
+      <p className={`mt-4 mb-0 ${verdict.tone}`}>
+        {verdict.text}
         {deviationBps !== undefined && (
           <span className="text-base-content/60">
             {" "}
-            They are {(deviationBps / 100).toFixed(2)}% apart (limit {MAX_DEVIATION_BPS / 100}%, max age{" "}
-            {MAX_STALENESS_SECONDS / 60} min).
+            They are {(deviationBps / 100).toFixed(2)}% apart (limit {maxDev}, max age {maxAge}, both read from
+            PriceGuard).
           </span>
         )}
       </p>

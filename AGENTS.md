@@ -113,7 +113,7 @@ A market is a `PriceGuard` config plus its own pool and market. **No contract ch
 
 Verify: `check-markets` passes, `yarn foundry:test` passes, `custos:check-market:testnet` prints "Both feeds answer", `yarn foundry:lint` and `yarn docs:check` pass.
 
-The app is HBAR-USD only: `hooks/custos/usePriceFeeds.ts` hard-codes Supra pair 75 and the 7200 s / 500 bps limits, and `externalContracts.ts` names `ChainlinkHbarUsd`. Don't add a market switcher as part of this recipe.
+The app is HBAR-USD only: `externalContracts.ts` names `ChainlinkHbarUsd`, and `deployedContracts.ts` keeps the HBAR-USD deploy. The Supra pair and the staleness and deviation limits are not hard-coded in the app: `hooks/custos/usePriceFeeds.ts` reads `supraPair()`, `maxStaleness()` and `maxDeviationBps()` from the deployed `PriceGuard`. Don't add a market switcher as part of this recipe.
 
 ### Recipe 2: Reuse the engine for lending
 
