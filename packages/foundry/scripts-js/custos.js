@@ -1,9 +1,10 @@
 // Custos on Hedera testnet, with `forge create` and `cast send` only. `forge script` cannot simulate Hedera's
 // system contracts (HSS, HTS), and current Foundry cannot fork through the public JSON-RPC relay.
 //
-//   yarn custos:deploy:testnet   PriceGuard → LiquidityPool → PerpMarket, link them, fund the keeper,
-//                                write deployments/296.json and regenerate the frontend's deployedContracts.ts
-//   yarn custos:start:testnet    associate pool + market with USDC, book the keeper's first tick
+//   yarn custos:deploy:testnet   PriceGuard → LiquidityPool → PerpMarket, link them, fund the keeper, then
+//                                HbarDepositZap (HBAR-USD only); write deployments/296.json and regenerate the
+//                                frontend's deployedContracts.ts
+//   yarn custos:start:testnet    associate pool, market and zap with USDC, book the keeper's first tick
 //   yarn custos:demo:testnet     swap HBAR to USDC on SaucerSwap and seed the pool, then open a 50x long with
 //                                HBAR alone (openWithHbar) that a ~1% drop liquidates
 //   yarn custos:revive:testnet   restart the keeper if its chain broke
@@ -202,7 +203,9 @@ async function main() {
     send("Link the pool to the market", pool.address, "setMarket(address)", [market.address]); // prettier-ignore
     send("Create the pool's HTS share token (cUSDC-LP)", pool.address, "createShareToken()", [], 3_000_000, `${shareTokenFee}ether`); // prettier-ignore
     send("Fund the keeper's fee reserve", market.address, "fund()", [], 100_000, `${fund}ether`); // prettier-ignore
-    record([guard, pool, market]);
+    // The zap's oracle floor prices HBAR with this guard, so it only makes sense on the HBAR-USD market.
+    const zap = IS_DEFAULT_MARKET && create("HbarDepositZap", [pool.address, guard.address, ROUTER, WHBAR, maxSwapDeviation], "contracts/periphery"); // prettier-ignore
+    record([guard, pool, market, ...(zap ? [zap] : [])]);
     console.log("\nNext: yarn custos:start:testnet");
   }
 
@@ -257,6 +260,8 @@ async function main() {
   if (command === "start") {
     send("Associate the pool with USDC", pool, "associate()");
     send("Associate the market with USDC", market, "associate()");
+    const { HbarDepositZap: zap } = deployed();
+    if (zap) send("Associate the HbarDepositZap with USDC", zap, "associate()");
     send("Book the keeper's first tick", market, "revive()", [], 2_500_000);
   }
 
