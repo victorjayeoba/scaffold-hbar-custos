@@ -62,7 +62,9 @@ jobs:
             echo "::error::harness:validate passed on main, but main ships without ETH-USD: the validators are not checking the feature"
             exit 1
           fi
-          if ! grep -q 'markets.json to contain ""ETH-USD""' without.log; then
+          # the finding reads: - Expected packages/foundry/markets.json to contain ""ETH-USD""
+          # (hedera-harness 1.2.2 wraps the expected text in quotes); match it however it quotes
+          if ! grep -qE 'markets\.json to contain .*ETH-USD' without.log; then
             echo "::error::harness:validate failed on main, but not for the missing ETH-USD market"
             exit 1
           fi
