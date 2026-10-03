@@ -7,6 +7,9 @@
 //   yarn custos:demo:testnet     swap HBAR to USDC on SaucerSwap and seed the pool, then open a 50x long with
 //                                HBAR alone (openWithHbar) that a ~1% drop liquidates
 //   yarn custos:revive:testnet   restart the keeper if its chain broke
+//   yarn workspace @sh/foundry custos zap
+//                                deploy HbarDepositZap next to the live pool (LPs deposit with HBAR via SaucerSwap),
+//                                associate it with USDC and regenerate the frontend's ABIs
 //   yarn custos:check-market:testnet --market <NAME>
 //                                deploy only a PriceGuard for that market and read both live feeds; exits 1 if
 //                                either feed doesn't answer (the quickest way to vet a new market's config)
@@ -88,12 +91,12 @@ function send(label, to, sig, args = [], gas = 1_000_000, value) {
   ]); // prettier-ignore
 }
 
-function create(name, args) {
+function create(name, args, dir = "contracts") {
   const out = run(
     `Deploy ${name}`,
     "forge",
     [
-      "create", `contracts/${name}.sol:${name}`, "--rpc-url", RPC, ...signer(),
+      "create", `${dir}/${name}.sol:${name}`, "--rpc-url", RPC, ...signer(),
       "--legacy", "--broadcast", "--json", "--constructor-args", ...args,
     ], // prettier-ignore
     true
@@ -158,10 +161,12 @@ function record(contracts) {
 
 async function main() {
   if (
-    !["deploy", "start", "demo", "revive", "check-market"].includes(command)
+    !["deploy", "start", "demo", "revive", "check-market", "zap"].includes(
+      command
+    )
   ) {
     console.log(
-      "Usage: node scripts-js/custos.js <deploy|start|demo|revive|check-market> [--market <NAME>] [--keystore <name>]"
+      "Usage: node scripts-js/custos.js <deploy|start|demo|revive|check-market|zap> [--market <NAME>] [--keystore <name>]"
     );
     process.exit(1);
   }
@@ -220,6 +225,34 @@ async function main() {
   }
 
   const { PerpMarket: market, LiquidityPool: pool } = deployed();
+
+  if (command === "zap") {
+    const { PriceGuard: guardAddress } = deployed();
+    const maxSwapDeviation = process.env.MAX_SWAP_DEVIATION_BPS || "300";
+    run("Compile", "forge", ["build"]);
+    const zap = create("HbarDepositZap", [pool, guardAddress, ROUTER, WHBAR, maxSwapDeviation], "contracts/periphery"); // prettier-ignore
+    send("Associate the zap with USDC", zap.address, "associate()");
+    // keep the earlier contracts in the record so the frontend's ABIs list all of them
+    const latest = join(
+      ROOT,
+      "broadcast",
+      "Deploy.s.sol",
+      "296",
+      "run-latest.json"
+    );
+    const earlier = existsSync(latest)
+      ? JSON.parse(readFileSync(latest, "utf8")).transactions.map((t) => ({
+          name: t.contractName,
+          address: t.contractAddress,
+          hash: t.hash,
+        }))
+      : [];
+    record([...earlier.filter((c) => c.name !== "HbarDepositZap"), zap]);
+    console.log(
+      `\nHbarDepositZap: https://hashscan.io/testnet/contract/${zap.address}`
+    );
+    return;
+  }
 
   if (command === "start") {
     send("Associate the pool with USDC", pool, "associate()");
