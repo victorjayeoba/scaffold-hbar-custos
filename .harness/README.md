@@ -10,7 +10,7 @@ This folder is a [Hedera Harness](https://github.com/hedera-dev/hedera-harness) 
 |---|---|---|
 | [`spec.yaml`](spec.yaml) | — | The recipe: baseline, validators, contract, chain tier |
 | [`prd.md`](prd.md) | — | The task the agent gets |
-| [`validators/static.json`](validators/static.json) | 0 | `markets.json` has ETH-USD with Chainlink ETH/USD and Supra pair 19, HBAR-USD is untouched, `test/markets/EthUsdMarket.t.sol` exists, the README lists `ETH-USD`, AGENTS.md documents `markets.json` and `check-market`, and no `.env` file exists anywhere |
+| [`validators/static.json`](validators/static.json) | 0 | `markets.json` has ETH-USD with Chainlink ETH/USD and Supra pair 19, HBAR-USD is untouched, `test/markets/EthUsdMarket.t.sol` exists, the README lists `ETH-USD`, AGENTS.md documents `markets.json` and `check-market`, and no root or app `.env` file exists (`packages/foundry/.env` is allowed: the template's `postinstall` copies it from `.env.example`) |
 | [`validators/yarn.json`](validators/yarn.json) | 1 | `check-markets ETH-USD` (offline config check), the ETH test, all 213+ contract tests and invariants, `foundry:lint`, the app's type check, lint and production build. No keys, no network |
 | [`validators/playwright-smoke.yaml`](validators/playwright-smoke.yaml) | 2 | `/`, `/keeper`, `/trade`, `/pool` and `/debug` load with no error overlay |
 | [`acceptance-contract.json`](acceptance-contract.json) | 3 | An adversarial agent grades the running app with no wallet: the keeper, trade and pool pages still read the live HBAR-USD deployment (adding a market must not break anything) |
@@ -41,7 +41,23 @@ The chain tier needs Foundry (`forge`, `cast`) on the PATH. The harness creates 
 Ready to run.
 ```
 
-**A reference implementation passes.** The branch [`harness/eth-usd-reference`](../../../tree/harness/eth-usd-reference) is a hand-written solution to the PRD: the ETH-USD entry in `markets.json` and `test/markets/EthUsdMarket.t.sol`. On it:
+**A reference implementation passes.** Before handing the task to an agent, we solved the PRD by hand, on top of `main`, in three files (it isn't kept in this repo; the template ships without ETH-USD on purpose, so the recipe has something to do):
+
+- `packages/foundry/markets.json`: one new entry next to HBAR-USD:
+  ```json
+  "ETH-USD": {
+    "chainlink": "0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9",
+    "supra": "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917",
+    "supraPair": 19,
+    "maxStaleness": 86400,
+    "maxDeviationBps": 500,
+    "refPrice8": 270000000000
+  }
+  ```
+- a new test, `packages/foundry/test/markets/EthUsdMarket.t.sol` (4 tests, ~135 lines), that reads that entry from `markets.json` and builds the stack on mocks at $2,700;
+- one row in the README's markets table: `| ETH-USD | 0xb9d4…71b9 | 19 | 86400 s (testnet; ~3600 s on mainnet) | 500 bps |`.
+
+With those three files:
 - `check-markets ETH-USD` → `✅ markets.json: HBAR-USD, ETH-USD`
 - `forge test --match-path "test/markets/*"`: 4 passed. ETH sizing (1,000 USDC notional at $2,700 = 0.37 ETH), a 10x long's liquidation price ~9% below entry and the network liquidating it on the next tick, and a short closing at a profit.
 - `test/Markets.t.sol` (which cycles every market in `markets.json`) passes with both markets.
@@ -95,7 +111,16 @@ Two validator mistakes surfaced in the first "without" run and were fixed before
 | Stage 3/4 SMOKE | Playwright gate: `/`, `/keeper`, `/trade`, `/pool`, `/debug` |
 | Stage 4/4 EVALUATE | The adversarial validator, verbatim: *"All four assertions positively verified on the running app at http://localhost:3001. Keeper, trade, pool and debug pages all render with the expected labels, controls and live data; new ETH-USD market was added as configuration only and did not disturb the existing HBAR-USD surfaces."* |
 
-The harness committed the agent's work to branch `harness/run-custos-eth-usd-market-02f70d` (commit `80053db`, "harness: run attempt 1 passed"). Its two parent commits are the run's preparation, not agent work: the three root devDependencies, and the spec's `expose.envVars` fix below. Raw run artifacts went to `.harness/runs/`, which is gitignored.
+What the agent wrote (the harness committed it to a throwaway run branch, which isn't kept in this repo: the recipe's job is to produce it, so `main` stays without ETH-USD):
+
+| File | Agent's change |
+|---|---|
+| `packages/foundry/markets.json` | `+8` lines: the ETH-USD entry, with the same values as the reference above |
+| `packages/foundry/test/markets/EthUsdMarket.t.sol` | new, `+162` lines, 5 tests: guard reads Ok and scales $2,700 to 1e18; 1,000 USDC notional sized in ETH units; liquidation price ~9% below entry; the network liquidates it via `vm.prank(address(market)); market.tick()`; a short closes at a profit paid by the pool |
+| `README.md` | `+1` line: `\| ETH-USD \| 0xb9d4…71b9 \| 19 \| 86400 s (testnet; use ~3600 s on mainnet) \| 500 bps \|` |
+| `GENERATION_NOTES.md` | new, `+15` lines: what it changed, and the checks it ran (`check-markets ETH-USD`, the ETH test 5/5, `Markets.t.sol` 2/2) |
+
+Raw run artifacts went to `.harness/runs/`, which is gitignored.
 
 The first try at this run found a bug in the recipe, not in the template. The chain command was written as `DEPLOYER_PRIVATE_KEY="$HARNESS_SIGNER_PRIVATE_KEY" yarn …`, a POSIX-only prefix that cmd.exe rejects (`'DEPLOYER_PRIVATE_KEY' is not recognized`). It now uses the harness's own `expose.envVars: [DEPLOYER_PRIVATE_KEY]` and a plain `yarn` command that works in every shell. (On that try the agent had already implemented the PRD correctly; only the chain step failed.)
 
