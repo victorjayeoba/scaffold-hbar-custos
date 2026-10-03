@@ -433,6 +433,12 @@ Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:bui
 | 3 | The keeper, trade, pool and debug pages still show live HBAR-USD data | [`acceptance-contract.json`](.harness/acceptance-contract.json) |
 | 3.5 | `custos:check-market:testnet --market ETH-USD` reads both ETH feeds on testnet, signed by the harness's funded throwaway account through an environment variable | `spec.yaml`, `chainValidation` |
 
+The recipe is proven both ways, on fresh clones (details and raw output in [`.harness/README.md`](.harness/README.md)):
+
+- **Without ETH-USD, the validators fail:** `hedera-harness validate` on `main` as shipped gives `passed=false` with 8 findings, every one about the missing market and no false alarms.
+- **With it, they pass:** on `main` plus a hand-written reference implementation (3 files), `passed=true`, `findings=0`, and the Playwright gate renders 5 routes with no console errors.
+- **An agent did the task:** a recorded `hedera-harness run` passed on attempt 1 of 3 in 15 min 39 s. The agent changed 4 files and no contracts, and the chain tier deployed a PriceGuard with its ETH-USD config on testnet from the harness's throwaway account.
+
 ## Project structure
 
 ```text
