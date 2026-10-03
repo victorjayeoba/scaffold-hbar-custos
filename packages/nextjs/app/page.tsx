@@ -59,7 +59,7 @@ const underTheHood = [
   },
   {
     name: "Token Service",
-    body: "Collateral is Circle's testnet USDC, an HTS token. The market and pool associate with it when they start, so traders can deposit straight away.",
+    body: "Collateral is SaucerSwap's testnet USDC (0.0.5449), an HTS token. The market, the pool and the deposit zap associate with it when they start, so traders and LPs can use it straight away.",
   },
   {
     name: "Chainlink",
@@ -67,11 +67,15 @@ const underTheHood = [
   },
   {
     name: "Supra",
-    body: "The HBAR/USDT push feed is the independent check. It quotes USDT and updates about hourly on testnet, so the limit is 5% and two hours.",
+    body: "The HBAR/USDT push feed is the independent check. It quotes USDT and updates about hourly on testnet, so the two feeds may sit up to 5% apart. The live readout shows both limits as PriceGuard holds them.",
+  },
+  {
+    name: "SaucerSwap",
+    body: "HBAR goes in and out of both sides through its V1 router: open with HBAR, close to HBAR, and deposit into the pool with HBAR. Every swap the contracts make for someone else must fill within 3% of Chainlink.",
   },
   {
     name: "Smart contracts",
-    body: "Five Solidity contracts on Hedera's EVM, with unit tests and fuzzed solvency invariants: the pool always covers what it owes.",
+    body: "Solidity contracts on Hedera's EVM, with unit tests and fuzzed solvency invariants: the pool always covers what it owes.",
   },
   {
     name: "Hedera timing",

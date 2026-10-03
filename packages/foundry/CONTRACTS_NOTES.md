@@ -183,7 +183,7 @@ Every keeper event is also written to a Hedera Consensus Service topic, [0.0.108
 
 - **Testnet refuels fail closed.** SaucerSwap testnet's USDC pool is ~22x off the oracle (§4.8), so the keeper is funded by hand on testnet. Self-refuel is proven by tests at sane prices.
 - **The keeper costs real HBAR.** About 1.4 ℏ per run, ~65 ℏ a day at a 30 min interval (§5). When the reserve can't cover the next run's gas hold, the chain stops until someone funds and revives it.
-- **Push oracles lag.** Chainlink and Supra update on deviation or heartbeat, so the market trades on a price that can be minutes old; with 2 h staleness and a 5% deviation band, a 50x position can be hit by oracle lag. The 300 s minimum hold and the 0.1% fees blunt it; they don't remove it.
+- **Push oracles lag.** Chainlink and Supra update on deviation or heartbeat, so the market trades on a price that can be minutes old; with 12 h staleness and a 5% deviation band, a 50x position can be hit by oracle lag. The 300 s minimum hold and the 0.1% fees blunt it; they don't remove it.
 - **Liquidation keeps the remainder.** A liquidated position's leftover equity (up to 1% of notional) goes to the pool, not back to the trader.
 - **The pool's value ignores the per-position gain cap and loss floor.** Exact until a position is past +100% or below zero equity; liquidation keeps positions away from the floor.
 - **LPs are locked while prices are bad.** Deposits and withdrawals pause while positions are open and the price isn't `Ok`, so shares are never priced at a bad price.

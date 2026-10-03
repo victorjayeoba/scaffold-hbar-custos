@@ -25,7 +25,7 @@ Custos (Latin: *the keeper*) is a [Scaffold-HBAR](https://docs.hedera.com/soluti
 
 The demo is an HBAR-USD perpetual market settled in USDC, backed by a USDC pool whose LP shares are a native HTS token. The template is the three contracts underneath it, which you can reuse for lending, expiries, payouts or any job that must run on a timer.
 
-**Contents:** [Judge it in 90 seconds](#judge-it-in-90-seconds) · [What you get](#what-you-get) · [How it works](#how-it-works) · [Proof on testnet](#proof-on-testnet) · [Quick start](#quick-start) · [HIP-1215, learned the hard way](#hip-1215-learned-the-hard-way) · [Costs](#what-a-tick-costs) · [Units and numbers](#units-and-numbers) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Testing and CI](#testing-and-ci) · [Honest limits](#honest-limits) · [Extending it](#extending-it) · [Project structure](#project-structure)
+**Contents:** [Judge it in 90 seconds](#judge-it-in-90-seconds) · [Quick start](#quick-start) · [What you get](#what-you-get) · [How it works](#how-it-works) · [Proof on testnet](#proof-on-testnet) · [HIP-1215, learned the hard way](#hip-1215-learned-the-hard-way) · [Costs](#what-a-tick-costs) · [Units and numbers](#units-and-numbers) · [Configuration](#configuration) · [Troubleshooting](#troubleshooting) · [Testing and CI](#testing-and-ci) · [Honest limits](#honest-limits) · [Extending it](#extending-it) · [Project structure](#project-structure)
 
 ## Judge it in 90 seconds
 
@@ -34,13 +34,65 @@ Each link opens on HashScan. Nothing here needs a wallet.
 | # | Click | What you'll see |
 | --- | --- | --- |
 | 1 | [Tick 4 of the final deploy](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) | **A liquidation nobody signed.** A `CONTRACTCALL` the Schedule Service executed from a booked schedule (the mirror node reports `scheduled: true`, `SUCCESS`). HBAR rose to $0.10277, past the 50x short's liquidation price, and the market liquidated it with `Liquidated(byNetwork = true, by = 0x0, reward = 0)`: all its collateral to the pool, no reward because no one called it. The market paid 1.980 ℏ for 2,385,537 gas. |
-| 2 | [Schedule 0.0.10834054](https://hashscan.io/testnet/schedule/0.0.10834054) | The schedule that ran tick 4. The market booked it during tick 3 and is its payer: the contract books and pays for its own next run. |
-| 3 | [Tick 1 of the final deploy](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) | The first network run, from [schedule 0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097): accrued funding, swept the 2 open positions, recorded the gas price it ran at (84 tinybar/gas) and booked tick 2. 1.359 ℏ for 1,618,265 gas. |
-| 4 | [Heartbeat 0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628) | The smallest keeper ticking three times, 60 s apart, each run booked by the run before it ([1](https://hashscan.io/testnet/schedule/0.0.10776630), [2](https://hashscan.io/testnet/schedule/0.0.10776638), [3](https://hashscan.io/testnet/schedule/0.0.10776648)). |
-| 5 | [cUSDC-LP 0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | The LP share: a native HTS token the pool contract created and mints, not an ERC-20 imitation. |
-| 6 | [Open with HBAR alone](https://hashscan.io/testnet/transaction/0x62868b097e839fdeeef472c7fd8ff26f58a3ddd410924b825f2855d75e3986e7) | A 50x long opened with 1 ℏ, swapped to USDC collateral on SaucerSwap in the same transaction. |
+| 2 | [Tick 18](https://hashscan.io/testnet/transaction/0x963bf611a22de64c060b62a5b5267e425af1d5b4e180c9f22aa84a65b0ec8303) | **A second one, the other way.** The network liquidated the 50x long `0xA807…6Ec6` at $0.10062 (its liquidation price was $0.10083), `byNetwork = true`, `reward = 0`; the mirror node again reports `scheduled: true`, `SUCCESS`. Ticks 12–16 before it ran while Chainlink's testnet feed was hours old and emitted `SweepSkipped(Stale)`: the keeper refused to liquidate at a stale price. |
+| 3 | [Schedule 0.0.10834054](https://hashscan.io/testnet/schedule/0.0.10834054) | The schedule that ran tick 4. The market booked it during tick 3 and is its payer: the contract books and pays for its own next run. |
+| 4 | [HCS topic 0.0.10839050](https://hashscan.io/testnet/topic/0.0.10839050) | Every keeper event (`Ticked`, `Swept`, `SweepSkipped`, `Liquidated`, `Refueled`) copied to the Consensus Service as an audit log: message #7 is the tick-4 liquidation, #36 the tick-18 one, #24–#32 the five skipped sweeps. |
+| 5 | [Tick 1 of the final deploy](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) | The first network run, from [schedule 0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097): accrued funding, swept the 2 open positions, recorded the gas price it ran at (84 tinybar/gas) and booked tick 2. 1.359 ℏ for 1,618,265 gas. |
+| 6 | [Heartbeat 0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628) | The smallest keeper ticking three times, 60 s apart, each run booked by the run before it ([1](https://hashscan.io/testnet/schedule/0.0.10776630), [2](https://hashscan.io/testnet/schedule/0.0.10776638), [3](https://hashscan.io/testnet/schedule/0.0.10776648)). |
+| 7 | [cUSDC-LP 0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | The LP share: a native HTS token the pool contract created and mints, not an ERC-20 imitation. |
+| 8 | [Open with HBAR alone](https://hashscan.io/testnet/transaction/0x62868b097e839fdeeef472c7fd8ff26f58a3ddd410924b825f2855d75e3986e7) | A 50x long opened with 1 ℏ, swapped to USDC collateral on SaucerSwap in the same transaction. |
+| 9 | [Deposit with HBAR alone](https://hashscan.io/testnet/transaction/0x3c23d3b3cdf4058d5843f06be3d66af91e35c886af53370437cb5d21636ca098) | `HbarDepositZap` swaps 0.5 ℏ to 1.12 USDC on SaucerSwap and deposits it into the pool, which mints the caller 1.114696 cUSDC-LP, all in one transaction. |
 
 Then run the app (`yarn next:dev`) and open `/keeper`: the countdown to the next network run, the fee reserve, both oracle feeds, and every run the network executed, read from the mirror node.
+
+## Quick start
+
+**You need:** Node.js ≥ 20.18.3, Git, [Foundry](https://getfoundry.sh) (`forge` and `cast`), and for the testnet steps a Hedera testnet account funded from the [faucet](https://portal.hedera.com/faucet).
+
+### 1. Scaffold and test locally (no account, nothing spent)
+
+```bash
+npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos
+cd <your-project>
+yarn foundry:compile
+yarn foundry:test          # 225 tests, including the 10-invariant solvency suite
+```
+
+The Schedule Service only exists on Hedera, not on Anvil or a fork, so the tests use a mock Schedule Service and a mock Token Service. The live keeper runs on testnet.
+
+### 2. Run your own market on testnet
+
+```bash
+yarn foundry:account:generate      # or: yarn foundry:account:import
+yarn custos:deploy:testnet         # PriceGuard, LiquidityPool, PerpMarket, HbarDepositZap; links them, creates cUSDC-LP, funds the keeper
+yarn custos:start:testnet          # associates pool, market and zap with USDC, books the first tick: from here the network runs it
+yarn custos:demo:testnet           # optional: seeds the pool via SaucerSwap, opens a 50x long with 1 HBAR
+```
+
+- **Signer:** `--keystore <name>` or `ETH_KEYSTORE_ACCOUNT` (otherwise it asks which keystore), or `DEPLOYER_PRIVATE_KEY` in the shell. Never write a key into a file.
+- **HBAR it sends by default:** 40 ℏ to the keeper's reserve (`KEEPER_FUND`) and 30 ℏ to create the share token (`SHARE_TOKEN_FEE`; about 12 ℏ is used, the rest comes back). The demo swaps 120 ℏ for pool USDC (`DEMO_POOL_HBAR`) and trades 1 ℏ (`DEMO_TRADE_HBAR`). Gas comes on top.
+- **In total:** 40 (reserve) + 12 (share token) + 120 (demo pool) + 1 (demo trade) = **173 ℏ, plus gas**, for the full own-deploy with the demo; 52 ℏ plus gas without it.
+- `custos:deploy:testnet` writes `packages/foundry/deployments/296.json` and regenerates `packages/nextjs/contracts/deployedContracts.ts`, so the app points at your market.
+- Why `forge create` and `cast send` rather than `forge script`: see [item 12](#hip-1215-learned-the-hard-way).
+
+### 3. Run the app
+
+```bash
+yarn next:dev
+```
+
+Open [localhost:3000/keeper](http://localhost:3000/keeper). The first network run comes one interval (30 min) after `custos:start:testnet`. Proof links on `/` come from `packages/nextjs/utils/custos/testnet.ts`; replace them with your own ids.
+
+With npm, put `--` before flags meant for a script: `npm run custos:deploy:testnet -- --market ETH-USD`.
+
+### Wallets
+
+**Connect Wallet** offers two groups:
+
+- **Hedera wallets: HashPack and Kabila.** They pair over WalletConnect's `eip155` namespace (Hedera testnet is `eip155:296`), so they sign the same wagmi calls as any EVM wallet: open, open with HBAR, add collateral, close, close to HBAR, USDC association and approval, pool deposit, withdraw and redeem, and keeper `fund()` and `revive()`. With the browser extension installed, choosing the wallet hands it the pairing request directly (the Hedera extension handshake, no extra package). Without it, scan the QR code with the phone app. The header shows the account as its Hedera ID (0.0.x) and its EVM address.
+- **EVM wallets:** MetaMask and any WalletConnect wallet. The burner wallet is under Development.
+
+Use an **ECDSA** account. EVM signing needs one; an ED25519 account has no EVM key. The WalletConnect project id in `packages/nextjs/scaffold.config.ts` is a shared default: set `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` to your own (free at cloud.reown.com) before you deploy.
 
 ## What you get
 
@@ -54,6 +106,7 @@ Then run the app (`yarn next:dev`) and open `/keeper`: the countdown to the next
 | [`PerpMarket`](packages/foundry/contracts/PerpMarket.sol) | The demo: HBAR-USD perpetual settled in USDC. Inherits all three. The network liquidates and charges funding on every tick. | Copy it for a new market |
 | [`LiquidityPool`](packages/foundry/contracts/LiquidityPool.sol) | USDC in, cUSDC-LP out: an HTS token the pool creates and mints. Every trader's counterparty. | Any vault whose shares should be a real Hedera token |
 | [`Heartbeat`](packages/foundry/contracts/examples/Heartbeat.sol) | The smallest keeper: counts its own beats. | Start here for your own keeper |
+| [`HbarDepositZap`](packages/foundry/contracts/periphery/HbarDepositZap.sol) | LPs deposit with HBAR: SaucerSwap swaps it to USDC, never more than 3% below the Chainlink value, and the zap deposits it for the caller in the same transaction. Holds nothing, needs no rights on the pool. | Any vault that should take HBAR without a separate swap |
 
 ### Four pages on top of Scaffold-HBAR
 
@@ -61,8 +114,8 @@ Then run the app (`yarn next:dev`) and open `/keeper`: the countdown to the next
 | --- | --- |
 | `/` | What Custos is, the live Chainlink and Supra readout, and the testnet proof. |
 | `/trade` | Open long or short with USDC or with HBAR alone (SaucerSwap swaps it), 1–50x. See your liquidation price, add collateral, close to USDC or straight to HBAR. Every open position is listed with its liquidation price. |
-| `/pool` | Deposit USDC for cUSDC-LP, redeem or withdraw, share price, what the pool has earned (fees, liquidations, trader losses, keeper costs). Handles HTS association for you. |
-| `/keeper` | The keeper's heartbeat: countdown to the next run, runs left in the reserve, `fund()` and `revive()` buttons, the price the keeper trusts, and every run the network executed with its fee and a HashScan link. |
+| `/pool` | Deposit USDC, or HBAR through SaucerSwap (`HbarDepositZap`, with a live quote and your slippage), for cUSDC-LP; redeem or withdraw; share price, what the pool has earned (fees, liquidations, trader losses, keeper costs). Handles HTS association for you. |
+| `/keeper` | The keeper's heartbeat: countdown to the next run, runs left in the reserve, `fund()` and `revive()` buttons, the price the keeper trusts, the audit log on HCS, and every run the network executed with its fee and a HashScan link. |
 
 Plus the stock `/debug` (every contract function) and `/blockexplorer`.
 
@@ -83,11 +136,16 @@ Mobile layouts: [keeper](docs/images/keeper-mobile.png) · [trade](docs/images/t
 | **Schedule Service (HIP-1215)**, `0x16b` | `scheduleCall` books each next `tick()`; `hasScheduleCapacity` probes up to 10 seconds. The contract is the schedule's payer. | Yes: it is the keeper |
 | **Token Service (HTS)**, `0x167` | The pool calls `createFungibleToken`, `mintToken`, `burnToken`, `transferToken` for cUSDC-LP. USDC collateral is HTS token 0.0.5449. HIP-719 `associate()` on token facades. | Yes |
 | **Smart contracts** | Solidity, Foundry, deployed with `forge create` / `cast send` through the JSON-RPC relay. | Yes |
+| **Consensus Service (HCS)** | Every keeper event is copied to topic [0.0.10839050](https://hashscan.io/testnet/topic/0.0.10839050) by `yarn custos:hcs-log:testnet` (hourly in CI when operator secrets are set; a dry run otherwise). Idempotent: it resumes after the last logged event. Shown on `/keeper`. | No: an audit trail. The keeper never depends on it |
 | **Mirror node** | The `/keeper` and `/pool` histories (logs plus which transactions were `scheduled`), HTS association status. | For the app |
 | **Chainlink** HBAR/USD | The price for every open, close, liquidation and refuel. | Yes |
 | **Supra** HBAR/USDT (pair 75) | The cross-check. If it is stale or more than 5% from Chainlink, nothing opens and nothing is liquidated. | Yes: no Supra, no `Ok` price |
 | **HashPack, Kabila** | Connect and sign every write in the app over WalletConnect `eip155:296`, next to MetaMask. Wired in `services/web3/hederaWallets.ts`. | No: any EVM wallet works too |
-| **SaucerSwap V1** | `openWithHbar`, `closeToHbar`, and the keeper's refuel (USDC from the pool to HBAR). | No: optional. Deploy with a zero router and the USDC paths work alone. |
+| **SaucerSwap V1** | `openWithHbar`, `closeToHbar`, `HbarDepositZap.depositWithHbar`, and the keeper's refuel (USDC from the pool to HBAR). | No: optional. The USDC paths work without it. |
+
+SaucerSwap carries HBAR into and out of both sides of the market. Traders open with HBAR (`openWithHbar`) and close straight to HBAR (`closeToHbar`); LPs deposit with HBAR through `HbarDepositZap`, which swaps on SaucerSwap, refuses any fill more than 3% below the Chainlink value, and deposits into the pool in the same transaction ([live deposit](https://hashscan.io/testnet/transaction/0x3c23d3b3cdf4058d5843f06be3d66af91e35c886af53370437cb5d21636ca098)). The keeper's self-refuel also goes through SaucerSwap within the same 3% band. On testnet the USDC/WHBAR pool prices HBAR at 2.24 USDC against Chainlink's $0.10 (moving it into band would take ~496,000 HBAR), so the band correctly refuses it and the reserve is funded with `fund()`.
+
+HashPack and Kabila connect and sign over WalletConnect `eip155:296` (see [Wallets](#wallets)); the Playwright suite checks the pairing, but no testnet transaction has been signed from either wallet yet.
 
 ## How it works
 
@@ -95,6 +153,9 @@ Mobile layouts: [keeper](docs/images/keeper-mobile.png) · [trade](docs/images/t
 flowchart LR
   T[Trader] -- open / close / closeToHbar --> M[PerpMarket]
   L[LP] -- deposit / redeem --> P[LiquidityPool]
+  L -- depositWithHbar --> Z[HbarDepositZap]
+  Z -- swap HBAR to USDC --> R
+  Z -- deposit for the LP --> P
   P -- mints / burns --> S[(cUSDC-LP<br/>HTS token)]
   M -- price / prices --> G[PriceGuard]
   G --> C[Chainlink HBAR/USD]
@@ -154,6 +215,7 @@ All of it is in [`packages/foundry/TESTNET.md`](packages/foundry/TESTNET.md); ad
 | LiquidityPool | [0.0.10833082](https://hashscan.io/testnet/contract/0.0.10833082) | `0x06061a60D2f9E99410F1D2b310DCF51A1ff2A3b1` |
 | PriceGuard | [0.0.10833074](https://hashscan.io/testnet/contract/0.0.10833074) | `0x293e90142cc9dDF603d9Ab405B43236e8077EF75` |
 | cUSDC-LP (HTS, created by the pool) | [0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | `0x0000000000000000000000000000000000a54cc2` |
+| HbarDepositZap (LPs deposit with HBAR) | [0.0.10838223](https://hashscan.io/testnet/contract/0.0.10838223) | `0xdD40EBFf88aaDc52B31D9E698803e47B04Ef185C` |
 | USDC (SaucerSwap testnet's) | 0.0.5449 | `0x0000000000000000000000000000000000001549` |
 
 ### Every flow, on chain
@@ -168,6 +230,7 @@ All of it is in [`packages/foundry/TESTNET.md`](packages/foundry/TESTNET.md); ad
 | Open with USDC: 2x long, 1 USDC | [`0xd3f325cf…443de8`](https://hashscan.io/testnet/transaction/0xd3f325cf8191e5e197b9af1f45a9ab90173079181724f9f331bb603726443de8) |
 | Close, paid out in USDC | [`0xbaa65216…c61df6`](https://hashscan.io/testnet/transaction/0xbaa65216cdb2988c3164ae25193927e622255133d6866d3c46605d6f83c61df6) |
 | Close straight to HBAR (`closeToHbar`, payout swapped on SaucerSwap) | [`0x1e427e54…d91c36`](https://hashscan.io/testnet/transaction/0x1e427e54abd7594d815afa933b1dbacb31ec45ca6f5133f9b416801117d91c36) |
+| Deposit with HBAR: 0.5 ℏ swapped to 1.12 USDC on SaucerSwap and deposited for the caller (`HbarDepositZap.depositWithHbar`), 1.114696 cUSDC-LP minted to them | [`0x3c23d3b3…36ca098`](https://hashscan.io/testnet/transaction/0x3c23d3b3cdf4058d5843f06be3d66af91e35c886af53370437cb5d21636ca098) |
 | Redeem 10 cUSDC-LP, pool burns the shares | [`0x90487242…2d7422`](https://hashscan.io/testnet/transaction/0x9048724259694f86a20fa69aa069a89d3e85045703b0a6f1a9b302d66c2d7422) |
 
 ### The network keeps the market (final deploy)
@@ -181,83 +244,16 @@ Each tick is executed by the Schedule Service from a schedule the previous tick 
 | 3 | [`0xcaaa44b5…0e38aef3`](https://hashscan.io/testnet/transaction/0xcaaa44b5a61366f099f2d334c571e1d578b198357ea07dc56c350c980e38aef3) | Funding, sweep (none underwater), booked tick 4 on schedule [0.0.10834054](https://hashscan.io/testnet/schedule/0.0.10834054). 1.315 ℏ for 1,584,087 gas |
 | 4 | [`0x7c37d2a7…8dde59a9`](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) | **Liquidated** the 50x short `0xebBA…F393` at $0.10277 (its liquidation price was $0.10266): `Liquidated(byNetwork = true, by = 0x0, reward = 0)`, all collateral to the pool. Nobody signed it. 1.980 ℏ for 2,385,537 gas |
 
-Later ticks appear live on `/keeper`.
+Tick 18 ([`0x963bf611…0ec8303`](https://hashscan.io/testnet/transaction/0x963bf611a22de64c060b62a5b5267e425af1d5b4e180c9f22aa84a65b0ec8303)) **liquidated the other demo position**, the 50x long `0xA807…6Ec6`, at $0.10062 (its liquidation price was $0.10083): `byNetwork = true`, `reward = 0`. Ticks 12–16 ran while Chainlink's testnet feed was hours old and skipped the sweep with `SweepSkipped(Stale)`, as designed. Every event is also on HCS topic [0.0.10839050](https://hashscan.io/testnet/topic/0.0.10839050) ([CONTRACTS_NOTES §6b](packages/foundry/CONTRACTS_NOTES.md#6b-audit-log-on-hcs)). Later ticks appear live on `/keeper`.
 
-### Earlier deploy (2026-09-29): the first network-run liquidation
+### Earlier runs and probes
 
-The first version (PerpMarket [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) had the network liquidate a position three days earlier, on the same design before the gas-hold fix. Each tick was executed by the Schedule Service from a schedule the previous tick booked.
+[TESTNET.md](packages/foundry/TESTNET.md) has the rest, every id linked:
 
-| Tick | Schedule | Executed | What it did |
-| --- | --- | --- | --- |
-| 1 | [0.0.10776713](https://hashscan.io/testnet/schedule/0.0.10776713) | [1790687748.000592261](https://hashscan.io/testnet/transaction/1790687748.000592261) | Funding accrued, swept 2 traders, none underwater |
-| 2 | [0.0.10777055](https://hashscan.io/testnet/schedule/0.0.10777055) | [1790689547.018645425](https://hashscan.io/testnet/transaction/1790689547.018645425) | Swept 2 traders, none underwater yet |
-| 3 | [0.0.10777398](https://hashscan.io/testnet/schedule/0.0.10777398) | [1790691346.057913123](https://hashscan.io/testnet/transaction/1790691346.057913123) | **Liquidated** the 50x long `0xA807…6Ec6` at 0.11304294 (liquidation price 0.11353): `Liquidated(byNetwork = true, reward = 0)`, all 0.1425 USDC collateral to the pool. 1.755 ℏ for 1.61M gas used of 2.5M |
+- **The first network-run liquidation (2026-09-29).** An earlier PerpMarket ([0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) had the network liquidate a 50x long at tick 3 ([1790691346.057913123](https://hashscan.io/testnet/transaction/1790691346.057913123)). That chain later stopped with `INSUFFICIENT_PAYER_BALANCE`, which taught [item 2](#hip-1215-learned-the-hard-way); the final deploy is built around it.
+- **Heartbeat** ([0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628)) ticked three times, 60 s apart, each run booked and paid for by the one before it.
+- **Three probe contracts** measured what [items 1 to 3](#hip-1215-learned-the-hard-way) rely on: a scheduled call runs as the contract itself, `tx.gasprice` inside it is 82 tinybars, and Hedera holds the whole gas limit before the run starts.
 
-Tick 3 ran one second before its `nextRunAt`, which the 5 s tolerance absorbs. That deploy's chain later stopped with `INSUFFICIENT_PAYER_BALANCE`, which taught item 2 below; the final deploy is built around it.
-
-### The keeper books itself (Heartbeat)
-
-| Tick | Schedule | Executed | Paid by the contract |
-| --- | --- | --- | --- |
-| 1 | [0.0.10776630](https://hashscan.io/testnet/schedule/0.0.10776630) | [1790685471.038694104](https://hashscan.io/testnet/transaction/1790685471.038694104) | 1.663 ℏ (includes booking tick 2) |
-| 2 | [0.0.10776638](https://hashscan.io/testnet/schedule/0.0.10776638) | [1790685529.003290433](https://hashscan.io/testnet/transaction/1790685529.003290433) | 1.607 ℏ (includes booking tick 3) |
-| 3 | [0.0.10776648](https://hashscan.io/testnet/schedule/0.0.10776648) | [1790685588.032277208](https://hashscan.io/testnet/transaction/1790685588.032277208) | 0.066 ℏ (last beat, books nothing) |
-
-### Probes: throwaway contracts that answered a question
-
-| Question | Answer |
-| --- | --- |
-| Who is `msg.sender` when the Schedule Service runs a booked call? | The contract itself, and `tx.origin` too (`0xd603925b9c9F91ce5D4b48C55834a46730a6143b`) |
-| What is `tx.gasprice` inside a scheduled run? | 82 tinybars per gas (`0x2B8ac8aC37764617b96D940141A6f8f5f19b6d8e`) |
-| Does Hedera hold the whole gas limit before a scheduled run? | Yes: a 5M-gas run with 3.6 ℏ in the contract failed `INSUFFICIENT_PAYER_BALANCE`, schedule [0.0.10832561](https://hashscan.io/testnet/schedule/0.0.10832561). The failed attempt still cost 0.018 ℏ. |
-
-## Quick start
-
-**You need:** Node.js ≥ 20.18.3, Git, [Foundry](https://getfoundry.sh) (`forge` and `cast`), and for the testnet steps a Hedera testnet account funded from the [faucet](https://portal.hedera.com/faucet).
-
-### 1. Scaffold and test locally (no account, nothing spent)
-
-```bash
-npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos
-cd <your-project>
-yarn foundry:compile
-yarn foundry:test          # 213 tests, including the 10-invariant solvency suite
-```
-
-The Schedule Service only exists on Hedera, not on Anvil or a fork, so the tests use a mock Schedule Service and a mock Token Service. The live keeper runs on testnet.
-
-### 2. Run your own market on testnet
-
-```bash
-yarn foundry:account:generate      # or: yarn foundry:account:import
-yarn custos:deploy:testnet         # PriceGuard, LiquidityPool, PerpMarket; links them, creates cUSDC-LP, funds the keeper
-yarn custos:start:testnet          # associates pool and market with USDC, books the first tick: from here the network runs it
-yarn custos:demo:testnet           # optional: seeds the pool via SaucerSwap, opens a 50x long with 1 HBAR
-```
-
-- **Signer:** `--keystore <name>` or `ETH_KEYSTORE_ACCOUNT` (otherwise it asks which keystore), or `DEPLOYER_PRIVATE_KEY` in the shell. Never write a key into a file.
-- **HBAR it sends by default:** 40 ℏ to the keeper's reserve (`KEEPER_FUND`) and 30 ℏ to create the share token (`SHARE_TOKEN_FEE`; about 12 ℏ is used, the rest comes back). The demo swaps 120 ℏ for pool USDC (`DEMO_POOL_HBAR`) and trades 1 ℏ (`DEMO_TRADE_HBAR`). Gas comes on top.
-- `custos:deploy:testnet` writes `packages/foundry/deployments/296.json` and regenerates `packages/nextjs/contracts/deployedContracts.ts`, so the app points at your market.
-- Why `forge create` and `cast send` rather than `forge script`: see [item 12](#hip-1215-learned-the-hard-way).
-
-### 3. Run the app
-
-```bash
-yarn next:dev
-```
-
-Open [localhost:3000/keeper](http://localhost:3000/keeper). The first network run comes one interval (30 min) after `custos:start:testnet`. Proof links on `/` come from `packages/nextjs/utils/custos/testnet.ts`; replace them with your own ids.
-
-With npm, put `--` before flags meant for a script: `npm run custos:deploy:testnet -- --market ETH-USD`.
-
-### Wallets
-
-**Connect Wallet** offers two groups:
-
-- **Hedera wallets: HashPack and Kabila.** They pair over WalletConnect's `eip155` namespace (Hedera testnet is `eip155:296`), so they sign the same wagmi calls as any EVM wallet: open, open with HBAR, add collateral, close, close to HBAR, USDC association and approval, pool deposit, withdraw and redeem, and keeper `fund()` and `revive()`. With the browser extension installed, choosing the wallet hands it the pairing request directly (the Hedera extension handshake, no extra package). Without it, scan the QR code with the phone app. The header shows the account as its Hedera ID (0.0.x) and its EVM address.
-- **EVM wallets:** MetaMask and any WalletConnect wallet. The burner wallet is under Development.
-
-Use an **ECDSA** account. EVM signing needs one; an ED25519 account has no EVM key. The WalletConnect project id in `packages/nextjs/scaffold.config.ts` is a shared default: set `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` to your own (free at cloud.reown.com) before you deploy.
 
 ## HIP-1215, learned the hard way
 
@@ -273,7 +269,7 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 | 6 | **Capacity is per second.** | `hasScheduleCapacity` first; if the second is full, try the next, up to 10. If all fail, `nextRunAt` still moves and anyone can `revive()` once `2 × interval` overdue. |
 | 7 | **A failed run breaks the chain silently:** nothing books the next one. | Public `revive()` (only when overdue), `_work()` in a self-call so its revert still books the next tick, `canPayNextRun()` for the app. |
 | 8 | **SaucerSwap testnet's USDC pool is ~22x off the oracle** (1 HBAR buys 2.249 USDC there; Chainlink says $0.1025). A wide refuel band once drained LPs to a share price of 0.40. | Refuels must fill within 3% of the oracle, so **on testnet they fail closed** (the tick still sweeps and reschedules, no USDC leaves the pool) and the reserve is topped up with `fund()`. |
-| 9 | **Supra's testnet HBAR/USDT pushes about hourly** and quotes USDT, so it can sit ~3% from Chainlink. Supra ETH/USDT (pair 19) was seen 2.3 h old. Pair 1 is stale. | HBAR-USD uses 2 h staleness and 5% deviation. An ETH market needs a longer window. |
+| 9 | **Supra's testnet HBAR/USDT pushes about hourly** and quotes USDT, so it can sit ~3% from Chainlink. Supra ETH/USDT (pair 19) was seen 2.3 h old. Pair 1 is stale. | HBAR-USD uses 5% deviation and 12 h staleness (raised from 2 h on 3 Oct: Chainlink's testnet HBAR/USD can go hours between pushes). An ETH market needs a longer window still. |
 | 10 | **Creating an HTS token from a contract costs about 12 ℏ** (12.14 ℏ measured). | `createShareToken()` takes it as `msg.value` and refunds the rest. |
 | 11 | **An account must be associated with an HTS token before it can receive it.** | The pool and market `associate()` with USDC; users associate with USDC and cUSDC-LP through each token's HIP-719 `associate()`. To redeem, approve the pool on cUSDC-LP; it pulls and burns. |
 | 12 | **`forge script` can't deploy through the Hedera JSON-RPC relay** (it rejects the EIP-1898 block parameter Foundry sends when forking) and can't simulate HSS or HTS. | `yarn custos:deploy:testnet` uses `forge create` and `cast send`. |
@@ -373,16 +369,17 @@ The gas limit decides how much HBAR must sit in the reserve; the work done decid
 
 ## Testing and CI
 
-`yarn foundry:test` runs **213 tests, all passing** (Foundry 1.8.3, checked for this README):
+`yarn foundry:test` runs **225 tests, all passing** (Foundry 1.8.3, checked for this README):
 
 | Suite | Tests | What it covers |
 | --- | --- | --- |
-| `PerpMarket.t.sol` | 60 | Trading, network keeper, funding, SaucerSwap paths, audit regressions, gas-hold accounting |
+| `PerpMarket.t.sol` | 63 | Trading, network keeper, funding, SaucerSwap paths, audit regressions, gas-hold accounting |
 | `PerpMarket.fuzz.t.sol` | 25 | USDC conservation on open → move → close, gain cap, liquidation splits, close-price selection, `closeToHbar`, OI cap, random books |
 | `LiquidityPool.t.sol` | 30 | HTS share token, deposit/redeem/withdraw, pool value with open PnL, JIT attacks, inflation attack, access |
 | `ScheduledKeeper.t.sol` + `ScheduledKeeper.edge.t.sol` | 41 | Network-only tick, tolerance window, capacity probing, failure codes, revive boundaries, gas starvation, reentrancy, Heartbeat |
-| `PriceGuard.t.sol` + `PriceGuard.fuzz.t.sol` | 34 | Decimals scaling, staleness and deviation boundaries, broken and overflowing feeds, owner bounds |
+| `PriceGuard.t.sol` + `PriceGuard.fuzz.t.sol` | 35 | Decimals scaling, staleness and deviation boundaries, broken and overflowing feeds, owner bounds |
 | `MarginMath.t.sol` | 20 | PnL, equity cap, liquidation price, funding index, running sums vs per-position sums |
+| `HbarDepositZap.t.sol` | 8 | Swap and deposit for the caller, the caller's minimum, the oracle floor against a short-changing pool (also fuzzed), a non-`Ok` price, zero amount, constructor checks |
 | `Markets.t.sol` | 2 | Every market in `markets.json` through a full cycle at its reference price |
 | `test/invariant/Solvency.t.sol` | 1 suite, 10 invariants | 256 runs × 50 calls (12,800 calls, 0 reverts) |
 
@@ -403,6 +400,7 @@ The gas limit decides how much HBAR must sit in the reserve; the work done decid
 | [`e2e.yaml`](.github/workflows/e2e.yaml) | push to `main`, PRs | Builds the app, then Playwright in Chromium: each route in `packages/nextjs/e2e/routes.ts` answers 200, shows its heading, logs no console errors |
 | [`gitleaks.yaml`](.github/workflows/gitleaks.yaml) | push, PRs, daily | Every commit scanned for secrets, with Hedera DER and raw-key rules in [`.gitleaks.toml`](.gitleaks.toml) |
 | [`docs.yaml`](.github/workflows/docs.yaml) | push, PRs | `yarn docs:check`: every contract, file, script and route this README and AGENTS.md name must exist. `template.json` is validated against the CLI's own schema |
+| [`hcs-log.yaml`](.github/workflows/hcs-log.yaml) | hourly, manual | Appends the keeper's new events to the HCS audit topic with the operator secrets; without them, a dry run |
 
 Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:build`, then `yarn next:e2e:install` once and `yarn next:e2e`.
 
@@ -410,7 +408,7 @@ Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:bui
 
 - **Testnet refuels fail closed.** SaucerSwap testnet's USDC pool is ~22x off the oracle, so on testnet the keeper is funded by hand. Self-refuel is proven by tests at sane prices.
 - **The keeper costs real HBAR:** about 1.4 ℏ a run, ~65 ℏ a day at 30 minutes. When the reserve can't cover the next run's gas hold, the chain stops until someone funds and revives it.
-- **Push oracles lag.** Chainlink and Supra update on deviation or heartbeat, so the price can be minutes old; with 2 h staleness and a 5% band, a 50x position can be hit by oracle lag. The 300 s hold and the 0.1% fees blunt it; they don't remove it.
+- **Push oracles lag.** Chainlink and Supra update on deviation or heartbeat, so the price can be minutes old; with 12 h staleness and a 5% band, a 50x position can be hit by oracle lag. The 300 s hold and the 0.1% fees blunt it; they don't remove it.
 - **Liquidation keeps the remainder.** A liquidated position's leftover equity (up to 1% of notional) goes to the pool, not the trader.
 - **The pool's value ignores the per-position gain cap and loss floor.** Exact until a position is past +100% or below zero equity.
 - **LPs are locked while prices are bad**, so shares are never priced at a bad price.
@@ -462,10 +460,12 @@ packages/
       PerpMarket.sol         the HBAR-USD market (inherits all three)
       LiquidityPool.sol      USDC pool, cUSDC-LP HTS share token
       examples/Heartbeat.sol the smallest keeper
+      periphery/HbarDepositZap.sol  deposit with HBAR: SaucerSwap swap, then a pool deposit
       interfaces/            HSS, HRC-719, Chainlink, Supra, SaucerSwap
     test/                    unit, fuzz, invariant/ suites and mocks/
-    scripts-js/custos.js     deploy | start | demo | revive | check-market
+    scripts-js/custos.js     deploy | start | demo | revive | check-market | zap
     scripts-js/checkMarkets.js  offline check of every markets.json entry
+    scripts-js/hcsLog.js     copies keeper events to the HCS audit topic
     markets.json             one entry per market
     deployments/296.json     the testnet deploy
     CONTRACTS_NOTES.md       design notes and measurements
@@ -479,7 +479,7 @@ packages/
     e2e/                     Playwright smoke test
 scripts/                     check-docs.mjs, check-template.mjs, check-scaffold.sh
 .harness/                    Hedera Harness recipe: add an ETH-USD market
-.github/workflows/           lint, fresh-scaffold, e2e, gitleaks, docs
+.github/workflows/           lint, fresh-scaffold, e2e, gitleaks, docs, hcs-log
 ```
 
 Deeper notes: [CONTRACTS_NOTES.md](packages/foundry/CONTRACTS_NOTES.md) (design, measurements, recipes) and [TESTNET.md](packages/foundry/TESTNET.md) (every proof).

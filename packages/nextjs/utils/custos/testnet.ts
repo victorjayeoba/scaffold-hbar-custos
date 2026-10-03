@@ -51,6 +51,10 @@ export const testnetProof: ProofRow[] = [
     "Open a 50x long with HBAR only: SaucerSwap swaps it to USDC collateral",
     "0x62868b097e839fdeeef472c7fd8ff26f58a3ddd410924b825f2855d75e3986e7",
   ),
+  tx(
+    "Deposit with HBAR: HbarDepositZap swaps 0.5 HBAR to 1.12 USDC on SaucerSwap, the pool mints the caller 1.11 cUSDC-LP",
+    "0x3c23d3b3cdf4058d5843f06be3d66af91e35c886af53370437cb5d21636ca098",
+  ),
   tx("Open a 50x short with 1.2 USDC", "0xfac6b7ecccee1f124fd9eb56be2f9657a8457dee24ccef923c2f434abbb7bdba"),
   tx("Open a 2x long with 1 USDC", "0xd3f325cf8191e5e197b9af1f45a9ab90173079181724f9f331bb603726443de8"),
   tx(
@@ -64,5 +68,9 @@ export const testnetProof: ProofRow[] = [
   tx(
     "Tick 4, run by the network: liquidates the 50x short, Liquidated(byNetwork = true, reward = 0), nobody signed it",
     "0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9",
+  ),
+  tx(
+    "Tick 18, run by the network: liquidates the 50x long, Liquidated(byNetwork = true, reward = 0), nobody signed it",
+    "0x963bf611a22de64c060b62a5b5267e425af1d5b4e180c9f22aa84a65b0ec8303",
   ),
 ];
