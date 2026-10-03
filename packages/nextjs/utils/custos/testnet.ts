@@ -61,6 +61,8 @@ export const testnetProof: ProofRow[] = [
     "First check, run by the network at the second it was booked: no one signed it",
     "0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6",
   ),
-  // TODO: add the first network-run liquidation on this deploy (Liquidated with byNetwork = true) once it has
-  // happened. Take the tx from the mirror node; never guess.
+  tx(
+    "Tick 4, run by the network: liquidates the 50x short, Liquidated(byNetwork = true, reward = 0), nobody signed it",
+    "0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9",
+  ),
 ];

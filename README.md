@@ -33,9 +33,9 @@ Each link opens on HashScan. Nothing here needs a wallet.
 
 | # | Click | What you'll see |
 | --- | --- | --- |
-| 1 | [Tick 1 of the final deploy](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) | **A check run by the network, paid by the contract, signed by nobody.** Executed from [schedule 0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097), which the market booked and pays for. It accrued funding, swept the 2 open positions, recorded the gas price it ran at (84 tinybar/gas) and booked tick 2. The market paid 1.359 ℏ for 1,618,265 gas. |
-| 2 | [Tick 3 of the earlier deploy (2026-09-29)](https://hashscan.io/testnet/transaction/1790691346.057913123) | **A liquidation nobody signed.** A `CONTRACTCALL` the Schedule Service executed from a booked schedule (the mirror node reports `scheduled: true`). It liquidated a 50x long at 0.11304294 with `Liquidated(byNetwork = true, reward = 0)` and sent all 0.1425 USDC of collateral to the pool. The contract paid 1.755 ℏ for it. |
-| 3 | [Schedule 0.0.10777398](https://hashscan.io/testnet/schedule/0.0.10777398) | The schedule that ran tick 3. It was booked by that deploy's market during its tick 2: the contract books its own next run. |
+| 1 | [Tick 4 of the final deploy](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) | **A liquidation nobody signed.** A `CONTRACTCALL` the Schedule Service executed from a booked schedule (the mirror node reports `scheduled: true`, `SUCCESS`). HBAR rose to $0.10277, past the 50x short's liquidation price, and the market liquidated it with `Liquidated(byNetwork = true, by = 0x0, reward = 0)`: all its collateral to the pool, no reward because no one called it. The market paid 1.980 ℏ for 2,385,537 gas. |
+| 2 | [Schedule 0.0.10834054](https://hashscan.io/testnet/schedule/0.0.10834054) | The schedule that ran tick 4. The market booked it during tick 3 and is its payer: the contract books and pays for its own next run. |
+| 3 | [Tick 1 of the final deploy](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) | The first network run, from [schedule 0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097): accrued funding, swept the 2 open positions, recorded the gas price it ran at (84 tinybar/gas) and booked tick 2. 1.359 ℏ for 1,618,265 gas. |
 | 4 | [Heartbeat 0.0.10776628](https://hashscan.io/testnet/contract/0.0.10776628) | The smallest keeper ticking three times, 60 s apart, each run booked by the run before it ([1](https://hashscan.io/testnet/schedule/0.0.10776630), [2](https://hashscan.io/testnet/schedule/0.0.10776638), [3](https://hashscan.io/testnet/schedule/0.0.10776648)). |
 | 5 | [cUSDC-LP 0.0.10833090](https://hashscan.io/testnet/token/0.0.10833090) | The LP share: a native HTS token the pool contract created and mints, not an ERC-20 imitation. |
 | 6 | [Open with HBAR alone](https://hashscan.io/testnet/transaction/0x62868b097e839fdeeef472c7fd8ff26f58a3ddd410924b825f2855d75e3986e7) | A 50x long opened with 1 ℏ, swapped to USDC collateral on SaucerSwap in the same transaction. |
@@ -176,12 +176,15 @@ Each tick is executed by the Schedule Service from a schedule the previous tick 
 | Tick | Executed | What it did |
 | --- | --- | --- |
 | 1 | [`0x5bebf1d8…0038f6`](https://hashscan.io/testnet/transaction/0x5bebf1d891890489514a052be62988357a00dc621b9fa19a6fe09f80de0038f6) (schedule [0.0.10833097](https://hashscan.io/testnet/schedule/0.0.10833097)) | Accrued funding, swept the 2 open positions (none underwater), recorded 84 tinybar/gas, booked tick 2. Paid by the market itself: 1.359 ℏ for 1,618,265 gas of 3,000,000 |
+| 2 | [`0x756e4e8e…8c518a`](https://hashscan.io/testnet/transaction/0x756e4e8e11bf69370a543a2d518e905c868aca2361ba606455b803140a8c518a) | Funding, sweep (none underwater), booked tick 3. 1.327 ℏ for 1,580,037 gas |
+| 3 | [`0xcaaa44b5…0e38aef3`](https://hashscan.io/testnet/transaction/0xcaaa44b5a61366f099f2d334c571e1d578b198357ea07dc56c350c980e38aef3) | Funding, sweep (none underwater), booked tick 4 on schedule [0.0.10834054](https://hashscan.io/testnet/schedule/0.0.10834054). 1.315 ℏ for 1,584,087 gas |
+| 4 | [`0x7c37d2a7…8dde59a9`](https://hashscan.io/testnet/transaction/0x7c37d2a7399f66bc85fe549a12766212d8622ed0a31911959c204e588dde59a9) | **Liquidated** the 50x short `0xebBA…F393` at $0.10277 (its liquidation price was $0.10266): `Liquidated(byNetwork = true, by = 0x0, reward = 0)`, all collateral to the pool. Nobody signed it. 1.980 ℏ for 2,385,537 gas |
 
-Later ticks appear live on `/keeper`. A network-run liquidation on this deploy needs HBAR to move about 2% against the 50x positions; until then, the liquidation proof is the earlier deploy's, below.
+Later ticks appear live on `/keeper`.
 
-### The first liquidation nobody signed (earlier deploy, 2026-09-29)
+### Earlier deploy (2026-09-29): the first network-run liquidation
 
-The first version (PerpMarket [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) proved the whole loop. Each tick was executed by the Schedule Service from a schedule the previous tick booked.
+The first version (PerpMarket [0.0.10776702](https://hashscan.io/testnet/contract/0.0.10776702), since retired) had the network liquidate a position three days earlier, on the same design before the gas-hold fix. Each tick was executed by the Schedule Service from a schedule the previous tick booked.
 
 | Tick | Schedule | Executed | What it did |
 | --- | --- | --- | --- |
@@ -273,7 +276,7 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 | Gas limit per tick (testnet deploy) | 3,000,000 |
 | Gas price | 82 tinybar/gas, measured inside a scheduled run |
 | **Held up front per run** | **2.46 ℏ.** The reserve must hold this or Hedera won't start the run |
-| **Charged per run** | **Gas used × gas price**, not the limit. Tick 1 of the final deploy: 1,618,265 gas of 3,000,000, charged **1.359 ℏ** at 84 tinybar/gas. On the earlier deploy a tick that liquidated a position used 1.61M gas and was charged 1.755 ℏ at ~109 tinybar/gas |
+| **Charged per run** | **Gas used × gas price**, not the limit. Tick 1 of the final deploy: 1,618,265 gas of 3,000,000, charged **1.359 ℏ** at 84 tinybar/gas. Tick 4, which also liquidated a position, used 2,385,537 gas and was charged 1.980 ℏ at 83 tinybar/gas |
 | Failed start (reserve too low) | 0.018 ℏ, and the chain stops until `fund()` and `revive()` |
 | Per day at a 30 min interval | 48 runs × ~1.36 ℏ ≈ 65 ℏ |
 | Testnet reserve at deploy | 36 ℏ. `runsLeft()` says 14 (it counts each run at the full 2.46 ℏ hold); at ~1.36 ℏ charged it lasts ~25 runs, ~12 h |
@@ -405,7 +408,6 @@ Locally: `yarn lint`, `yarn next:check-types`, `yarn docs:check`, `yarn next:bui
 - **Funding is linear and simple** (skew / pool assets); no price impact, no borrow fee.
 - **The keeper's HBAR can't be withdrawn.** It only pays for network runs; redeploying leaves the old reserve behind.
 - **The owner can tune, not take.** PerpMarket's owner can only correct the gas-price estimate; PriceGuard's owner can only move staleness and deviation within hard bounds; the pool's owner links the market and creates the share token once each.
-- **The final deploy has no network-run liquidation yet** (HBAR has to move ~2%). Its network ticks are on HashScan; the network-run liquidation linked here is from the earlier deploy (same design, before the gas-hold fix).
 - **Testnet assets.** USDC 0.0.5449 is SaucerSwap's testnet token. The code is built and tested for testnet.
 
 ## Extending it
