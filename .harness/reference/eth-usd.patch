@@ -1,0 +1,171 @@
+diff --git a/README.md b/README.md
+index 679d15d..95e4a84 100644
+--- a/README.md
++++ b/README.md
+@@ -312,6 +312,7 @@ The gas limit decides how much HBAR must sit in the reserve; the work done decid
+ | Market | Chainlink feed (8 dp) | Supra pair | Max staleness | Max deviation |
+ | --- | --- | --- | --- | --- |
+ | HBAR-USD | `0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a` | 75 | 7200 s | 500 bps |
++| ETH-USD | `0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9` | 19 | 86400 s (testnet; ~3600 s on mainnet) | 500 bps |
+ 
+ **Deploy-time variables**, read by `scripts-js/custos.js` from the shell environment (it does not load `packages/foundry/.env`):
+ 
+diff --git a/packages/foundry/markets.json b/packages/foundry/markets.json
+index 5201c62..283b06e 100644
+--- a/packages/foundry/markets.json
++++ b/packages/foundry/markets.json
+@@ -6,5 +6,13 @@
+     "maxStaleness": 7200,
+     "maxDeviationBps": 500,
+     "refPrice8": 12000000
++  },
++  "ETH-USD": {
++    "chainlink": "0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9",
++    "supra": "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917",
++    "supraPair": 19,
++    "maxStaleness": 86400,
++    "maxDeviationBps": 500,
++    "refPrice8": 270000000000
+   }
+ }
+diff --git a/packages/foundry/test/markets/EthUsdMarket.t.sol b/packages/foundry/test/markets/EthUsdMarket.t.sol
+new file mode 100644
+index 0000000..f975df9
+--- /dev/null
++++ b/packages/foundry/test/markets/EthUsdMarket.t.sol
+@@ -0,0 +1,135 @@
++// SPDX-License-Identifier: MIT
++
++pragma solidity ^0.8.19;
++
++import { Test } from "forge-std/Test.sol";
++import { htsSetup } from "hedera-forking/htsSetup.sol";
++import { PriceGuard } from "../../contracts/PriceGuard.sol";
++import { LiquidityPool } from "../../contracts/LiquidityPool.sol";
++import { PerpMarket } from "../../contracts/PerpMarket.sol";
++import { MockAggregator } from "../mocks/MockAggregator.sol";
++import { MockSupra } from "../mocks/MockSupra.sol";
++import { MockERC20 } from "../mocks/MockERC20.sol";
++import { MockHederaScheduleService } from "../mocks/MockHederaScheduleService.sol";
++
++/// @dev The ETH-USD market from markets.json, on mocks at its reference price ($2,700).
++contract EthUsdMarketTest is Test {
++    address internal constant HSS_ADDRESS = 0x000000000000000000000000000000000000016B;
++
++    MockERC20 internal usdc;
++    MockAggregator internal chainlink;
++    MockSupra internal supra;
++    PriceGuard internal guard;
++    LiquidityPool internal pool;
++    PerpMarket internal market;
++    uint256 internal ref8;
++
++    address internal lp = makeAddr("lp");
++    address internal alice = makeAddr("alice");
++    address internal bob = makeAddr("bob");
++
++    function setUp() public {
++        htsSetup();
++        vm.etch(HSS_ADDRESS, address(new MockHederaScheduleService()).code);
++        vm.warp(1_000_000);
++
++        string memory json = vm.readFile(string.concat(vm.projectRoot(), "/markets.json"));
++        string memory key = '$["ETH-USD"]';
++        ref8 = vm.parseJsonUint(json, string.concat(key, ".refPrice8"));
++        assertEq(vm.parseJsonUint(json, string.concat(key, ".supraPair")), 19);
++        assertEq(
++            vm.parseJsonAddress(json, string.concat(key, ".chainlink")), 0xb9d461e0b962aF219866aDfA7DD19C52bB9871b9
++        );
++
++        usdc = new MockERC20("USD Coin", "USDC", 6);
++        chainlink = new MockAggregator(8, int256(ref8));
++        supra = new MockSupra(8, ref8);
++        guard = new PriceGuard(
++            address(chainlink),
++            address(supra),
++            vm.parseJsonUint(json, string.concat(key, ".supraPair")),
++            vm.parseJsonUint(json, string.concat(key, ".maxStaleness")),
++            vm.parseJsonUint(json, string.concat(key, ".maxDeviationBps")),
++            address(this)
++        );
++        pool = new LiquidityPool(usdc, address(this));
++        market = new PerpMarket(
++            address(usdc),
++            address(guard),
++            address(pool),
++            address(this),
++            300,
++            2_500_000,
++            40,
++            address(0),
++            address(0),
++            1e6,
++            300
++        );
++        vm.deal(address(market), 100e8);
++        pool.setMarket(address(market));
++        pool.createShareToken{ value: 1e8 }();
++
++        usdc.mint(lp, 100_000e6);
++        vm.startPrank(lp);
++        usdc.approve(address(pool), type(uint256).max);
++        pool.deposit(100_000e6, lp);
++        vm.stopPrank();
++        for (uint256 i = 0; i < 2; i++) {
++            address who = i == 0 ? alice : bob;
++            usdc.mint(who, 1_000e6);
++            vm.prank(who);
++            usdc.approve(address(market), type(uint256).max);
++        }
++    }
++
++    function _setPrice(uint256 price8) internal {
++        chainlink.set(int256(price8), block.timestamp);
++        supra.set(price8, block.timestamp);
++    }
++
++    function test_guardScalesEthPrice() public view {
++        assertEq(uint256(guard.status()), uint256(PriceGuard.Status.Ok));
++        assertEq(guard.price(), 2_700e18);
++        assertEq(guard.maxStaleness(), 86_400); // Supra testnet pushes ETH rarely (8 h seen): use about 3,600 on mainnet
++    }
++
++    function test_positionIsSizedInEth() public {
++        vm.prank(alice);
++        market.open(true, 100e6, 10); // 1,000 USDC notional at $2,700
++        int256 size = market.positionOf(alice).size;
++        assertEq(size, int256(uint256(1_000e6) * 1e30 / 2_700e18));
++        assertApproxEqAbs(size, 0.37037037037037037e18, 1); // 0.37 ETH
++    }
++
++    function test_networkLiquidatesA10xLongAboutNinePercentDown() public {
++        vm.prank(alice);
++        market.open(true, 100e6, 10);
++        uint256 liq = market.liquidationPrice(alice);
++        assertApproxEqRel(liq, 2_700e18 * 9_100 / 10_000, 0.002e18); // collateral 99, margin 10: ~-8.9%
++
++        market.revive();
++        vm.warp(market.nextRunAt());
++        uint256 below8 = liq / 1e10 - 1e8; // $1 under the liquidation price
++        _setPrice(below8);
++        assertTrue(market.isLiquidatable(alice, below8 * 1e10));
++        uint256 poolBefore = usdc.balanceOf(address(pool));
++
++        vm.prank(address(market));
++        market.tick(); // the network's run
++        assertEq(market.positionOf(alice).size, 0);
++        assertEq(usdc.balanceOf(address(pool)) - poolBefore, 99e6);
++    }
++
++    function test_shortProfitsWhenEthFalls() public {
++        vm.prank(bob);
++        market.open(false, 100e6, 5); // 500 USDC short
++        vm.warp(block.timestamp + 300);
++        _setPrice(ref8 * 90 / 100); // ETH -10%
++        uint256 before = usdc.balanceOf(bob);
++        vm.prank(bob);
++        market.close();
++        // collateral 99.5 + ~50 profit - 0.5 close fee - a little funding
++        assertApproxEqAbs(usdc.balanceOf(bob) - before, 149e6, 0.1e6);
++    }
++}
