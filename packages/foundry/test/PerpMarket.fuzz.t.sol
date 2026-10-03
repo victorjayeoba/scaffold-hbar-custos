@@ -396,7 +396,8 @@ contract PerpMarketFuzzTest is CustosBase {
 
         uint256 lo = cl8 < s8 ? cl8 : s8;
         uint256 hi = cl8 < s8 ? s8 : cl8;
-        uint256 want = (isLong ? lo : hi) * 1e10;
+        // a stale Chainlink is left out entirely: only the fresh feed (Supra) can settle the close
+        uint256 want = stale ? s8 * 1e10 : (isLong ? lo : hi) * 1e10;
         assertEq(market.closePrice(alice), want);
 
         int256 eq = market.equity(alice, want);

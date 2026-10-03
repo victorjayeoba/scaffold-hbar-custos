@@ -838,4 +838,41 @@ contract PerpMarketTest is CustosBase {
         assertEq(tight.nextRunAt(), block.timestamp + 300); // the chain goes on
         assertEq(tight.runCount(), 1);
     }
+
+    /// @dev Judge finding (3 Oct): with one feed down, closePrice() used the other without checking its age, so a
+    ///      trader could close at a Supra price hours old that favoured them, and the pool would pay.
+    function test_closeNeverSettlesAtAStaleFeed() public {
+        _open(alice, true, 100e6, 10); // long at 0.12
+        vm.warp(block.timestamp + 300);
+        supra.set(13_000_000, block.timestamp); // Supra at +8%, good for the long...
+        vm.warp(block.timestamp + 3601); // ...then goes stale (staleness 3600 s in the base guard)
+        chainlink.set(0, block.timestamp); // and Chainlink stops answering
+
+        assertEq(market.closePrice(alice), 0); // no fresh feed: no price
+        vm.prank(alice);
+        vm.expectRevert(PerpMarket.PerpMarket__NoPrice.selector);
+        market.close();
+        assertEq(market.traderCount(), 1); // the position waits for a fresh price instead of cashing a stale one
+    }
+
+    function test_closeSkipsAStaleChainlinkAndUsesFreshSupra() public {
+        _open(bob, false, 100e6, 10); // short at 0.12
+        vm.warp(block.timestamp + 300);
+        chainlink.set(11_000_000, block.timestamp - 3601); // Chainlink at -8% (good for the short) but stale
+        supra.set(12_100_000, block.timestamp); // Supra fresh
+        assertEq(market.closePrice(bob), 0.121e18); // the fresh feed, not the stale one that favours the trader
+    }
+
+    function test_closeResumesWhenAFeedIsFreshAgain() public {
+        _open(alice, true, 100e6, 10);
+        vm.warp(block.timestamp + 4000);
+        chainlink.set(0, block.timestamp);
+        supra.set(12_000_000, block.timestamp - 3601);
+        assertEq(market.closePrice(alice), 0);
+        supra.set(11_900_000, block.timestamp); // Supra pushes again
+        assertEq(market.closePrice(alice), 0.119e18);
+        vm.prank(alice);
+        market.close();
+        assertEq(market.traderCount(), 0);
+    }
 }

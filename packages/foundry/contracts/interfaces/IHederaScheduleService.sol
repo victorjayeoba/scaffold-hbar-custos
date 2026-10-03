@@ -12,7 +12,7 @@ interface IHederaScheduleService {
      * @param to Target contract address
      * @param expirySecond Earliest execution time (consensus time) and expiration
      * @param gasLimit Gas limit for the scheduled call
-     * @param value HBAR to send with the call (0 for DCA - vault has balance)
+     * @param value HBAR (tinybars) to send with the call; the keeper books its ticks with 0
      * @param callData ABI-encoded function call
      * @return responseCode 22 = SUCCESS
      * @return scheduleAddress Address of the created schedule (address(0) on failure)
@@ -28,8 +28,4 @@ interface IHederaScheduleService {
      */
     function hasScheduleCapacity(uint256 expirySecond, uint256 gasLimit) external view returns (bool hasCapacity);
 
-    /**
-     * @notice Delete a scheduled transaction
-     */
-    function deleteSchedule(address scheduleAddress) external returns (int64 responseCode);
 }

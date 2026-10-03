@@ -9,7 +9,7 @@ Three reusable parts, and one market built from them:
 | Contract | Job | Reuse it for |
 |---|---|---|
 | `ScheduledKeeper` (abstract) | Runs `_work()` every `interval` seconds with no bot. Each `tick()` books the next one on the Hedera Schedule Service (HIP-1215) and pays for it from the contract's own HBAR. | Any job that must run on a timer: liquidations, interest, expiries, rebalancing, payouts |
-| `PriceGuard` | Chainlink is the price, Supra is the cross-check. `Stale` if either feed is older than `maxStaleness`, `Deviated` if they differ by more than `maxDeviationBps`. Never reverts on a broken feed. | Anything that must refuse to act on a bad price |
+| `PriceGuard` | Chainlink is the price, Supra is the cross-check. `Stale` if either feed is older than `maxStaleness` (or dated more than 5 min in the future), `Deviated` if they differ by more than `maxDeviationBps`. Never reverts on a broken feed, and never hands out a stale price: `prices()` reads a stale feed as 0. | Anything that must refuse to act on a bad price |
 | `MarginAccount` (abstract) | Position book and risk math: PnL, funding, equity, maintenance margin, liquidation price, plus running sums that value every open position in O(1). | Perps, margin, anything with leveraged positions |
 | `PerpMarket` | HBAR-USD perpetual market settled in USDC. Inherits all three. The network liquidates and charges funding on every tick. | The demo; copy it for a new market |
 | `LiquidityPool` | USDC in, **cUSDC-LP out: a native HTS token the pool creates and mints**. Every trader's counterparty. | Any vault whose shares should be a real Hedera token |
@@ -179,6 +179,7 @@ Proof transactions are listed in [`TESTNET.md`](TESTNET.md).
 - **Funding is linear and simple** (skew / pool assets); there's no price impact and no borrow fee.
 - **The keeper's HBAR can't be withdrawn.** It can only pay for network runs. Redeploying leaves the old reserve behind.
 - **The owner can tune, not take.** PerpMarket's owner can only correct the gas-price estimate; PriceGuard's owner can only change staleness/deviation within hard bounds; the pool's owner links the market and creates the share token once each. No one can move user funds.
+- **The live testnet deploy predates the stale-close fix.** A review on 2026-10-03 found that, with one feed down, `closePrice()` used the other feed without checking its age, so a trader could close at an old price that favoured them. The source now settles a close only at a feed younger than `maxStaleness` (and waits if neither is), and treats a feed timestamp more than 5 minutes in the future as stale (`PriceGuard.MAX_FUTURE_SKEW`); regression tests replay the attack. The contracts deployed on 2026-10-02 (§6) still have the old behaviour. On testnet the exposure needs Chainlink to stop answering while Supra is stale at a favourable price, and is capped by each position's gain cap; we kept the live deploy rather than strand its funded keeper reserve and its network-run proofs. A new deploy from this source has the fix.
 - **Testnet assets.** USDC 0.0.5449 is SaucerSwap's testnet token.
 - **Local chain is for trading and the pool only.** `yarn chain` + `yarn foundry:deploy` runs everything on mocks with stand-ins for the two system contracts; the keeper books ticks but nothing runs them, and the mock feeds go `Stale` 2 h after deploy (move them with `MockAggregator.set` / `MockSupra.set` from `/debug`).
 
@@ -250,15 +251,15 @@ The interval is fixed at deploy (`immutable`): `KEEPER_INTERVAL=3600 yarn custos
 
 ## 10. Tests
 
-`yarn foundry:test` runs 213 tests, all passing:
+`yarn foundry:test` runs 217 tests, all passing:
 
 | Suite | Tests | What it covers |
 |---|---|---|
-| `PerpMarket.t.sol` | 60 | Trading, network keeper, funding, SaucerSwap paths, audit regressions, gas-hold accounting |
+| `PerpMarket.t.sol` | 63 | Trading, network keeper, funding, SaucerSwap paths, audit regressions, gas-hold accounting |
 | `PerpMarket.fuzz.t.sol` | 25 | USDC conservation on open → move → close, gain cap, liquidation splits, close-price selection, `closeToHbar`, OI cap, random books |
 | `LiquidityPool.t.sol` | 30 | HTS share token, deposit/redeem/withdraw, pool value with open PnL, JIT attacks, inflation attack, access |
 | `ScheduledKeeper.t.sol` + `.edge.t.sol` | 41 | Network-only tick, tolerance window, capacity probing, failure codes, revive boundaries, gas starvation, reentrancy, Heartbeat |
-| `PriceGuard.t.sol` + `.fuzz.t.sol` | 34 | Decimals scaling, staleness and deviation boundaries, broken and overflowing feeds, owner bounds |
+| `PriceGuard.t.sol` + `.fuzz.t.sol` | 35 | Decimals scaling, staleness and deviation boundaries, broken and overflowing feeds, owner bounds |
 | `MarginMath.t.sol` | 20 | PnL, equity cap, liquidation price, funding index, running sums vs per-position sums |
 | `Markets.t.sol` | 2 | Every market in `markets.json` through a full cycle: open long and short at its reference price, network liquidation, profitable close, empty balanced books |
 | `invariant/Solvency.t.sol` | 10 invariants × 256 runs × 50 calls | Pool covers max gains; no bad debt; reserve covers the next tick; running sums match positions; collateral and OI books match; shares backed; nothing underwater after a tick; keeper stays scheduled |

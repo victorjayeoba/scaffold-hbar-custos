@@ -153,15 +153,26 @@ contract PriceGuardFuzzTest is Test {
     }
 
     /// A feed timestamp in the future is never stale.
-    function testFuzz_futureTimestampNeverStale(uint256 ahead, uint256 ahead2) public {
-        ahead = bound(ahead, 1, 365 days);
-        ahead2 = bound(ahead2, 0, 365 days);
+    function testFuzz_futureTimestampWithinSkewIsFresh(uint256 ahead, uint256 ahead2) public {
+        ahead = bound(ahead, 1, guard.MAX_FUTURE_SKEW());
+        ahead2 = bound(ahead2, 0, guard.MAX_FUTURE_SKEW());
         chainlink.set(12_000_000, block.timestamp + ahead);
         supra.set(12_000_000, block.timestamp + ahead2);
         assertEq(_status(guard), uint256(PriceGuard.Status.Ok));
         (,, uint256 clAt, uint256 spAt,) = guard.read();
         assertEq(clAt, block.timestamp + ahead);
         assertEq(spAt, block.timestamp + ahead2);
+    }
+
+    /// A timestamp further in the future than any real clock skew is bogus: Stale, and prices() reads that feed as 0.
+    function testFuzz_farFutureTimestampIsStale(uint256 ahead) public {
+        ahead = bound(ahead, guard.MAX_FUTURE_SKEW() + 1, 365 days);
+        chainlink.set(12_000_000, block.timestamp + ahead);
+        supra.set(12_000_000, block.timestamp);
+        assertEq(_status(guard), uint256(PriceGuard.Status.Stale));
+        (uint256 clP, uint256 spP,) = guard.prices();
+        assertEq(clP, 0);
+        assertEq(spP, 0.12e18);
     }
 
     /// A zero timestamp is always stale, even right after genesis.
@@ -276,7 +287,8 @@ contract PriceGuardFuzzTest is Test {
 
         (uint256 p, PriceGuard.Status s,,,) = guard.read();
         (uint256 clP,, PriceGuard.Status s2) = guard.prices();
-        assertEq(clP, p);
+        // prices() reads a feed older than maxStaleness as 0; read() still reports Chainlink's value for the UI
+        assertEq(clP, clAge > STALENESS ? 0 : p);
         assertEq(uint256(s2), uint256(s));
         assertEq(uint256(guard.status()), uint256(s));
         if (s == PriceGuard.Status.Ok) {

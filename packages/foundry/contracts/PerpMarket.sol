@@ -18,7 +18,7 @@ import { ISaucerSwapRouter } from "./interfaces/ISaucerSwapRouter.sol";
  * @notice HBAR-USD perpetual market settled in USDC, kept by the Hedera network: every `interval` the
  *         Schedule Service calls `tick()`, which accrues funding and liquidates underwater positions.
  *         Nothing is liquidated at a stale or deviated price. When prices are bad the market is close-only,
- *         and a close settles at whichever feed is worse for the trader.
+ *         and a close settles at whichever fresh feed is worse for the trader (it waits if neither is fresh).
  *         SaucerSwap does the HBAR conversions: open with HBAR alone (`openWithHbar`), close straight to HBAR
  *         (`closeToHbar`), and the keeper refuels its HBAR fee reserve from the pool's spare USDC.
  */
@@ -162,7 +162,8 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
     }
 
     /// @notice Closes the caller's position after `MIN_HOLD_SECONDS` and pays out USDC. Works in close-only mode
-    ///         too: at an `Ok` price it settles at Chainlink; otherwise at whichever feed is worse for the trader.
+    ///         too: at an `Ok` price it settles at Chainlink; otherwise at whichever fresh feed is worse for the
+    ///         trader, and not at all while neither feed is fresh.
     function close() external nonReentrant {
         (uint256 payout, uint256 collateral) = _close(msg.sender);
         _settle(msg.sender, collateral, payout);
@@ -281,7 +282,8 @@ contract PerpMarket is MarginAccount, ScheduledKeeper, Ownable, ReentrancyGuard 
         return (netTraderGain(price), true);
     }
 
-    /// @notice The price a close by `trader` would settle at right now (0 if neither feed answers).
+    /// @notice The price a close by `trader` would settle at right now: Chainlink at an `Ok` price; otherwise the
+    ///         worse-for-the-trader of the feeds that are still fresh; 0 (the close waits) if no feed is fresh.
     function closePrice(address trader) public view returns (uint256) {
         (uint256 chainlinkPrice, uint256 supraPrice, PriceGuard.Status status) = guard.prices();
         if (status == PriceGuard.Status.Ok) return chainlinkPrice;
