@@ -20,14 +20,14 @@ This folder is a [Hedera Harness](https://github.com/hedera-dev/hedera-harness) 
 
 ```bash
 # check the recipe itself
-npx hedera-harness@1.2.2 doctor .harness/spec.yaml --recipe-only
+yarn harness:doctor --recipe-only
 
 # tiers 0–2 against the current workspace, no agent
-npx hedera-harness@1.2.2 validate .harness/spec.yaml
+yarn harness:validate
 
 # the full loop: the agent implements the PRD, every tier runs, failures go back to the agent (up to 3 attempts)
 export HEDERA_OPERATOR_ID=0.0.xxxx HEDERA_OPERATOR_KEY=0x...   # an ECDSA testnet account with ~15 ℏ; shell only, never a file
-npx hedera-harness@1.2.2 run .harness/spec.yaml
+yarn harness:run
 ```
 
 The chain tier needs Foundry (`forge`, `cast`) on the PATH. The harness creates one EVM-aliased account per run, funds it with 10 ℏ from your operator, passes it to the deploy command as `DEPLOYER_PRIVATE_KEY` (environment only), and sweeps what's left back afterwards. A PriceGuard deploy costs about 1 ℏ. Run artifacts go to `.harness/runs/`, which is gitignored.
@@ -55,6 +55,48 @@ ETH-USD: Chainlink 2657.85, Supra 2702.77, status Stale
 
 `Stale` was the honest reading that day: Supra's testnet ETH/USDT hadn't updated for 8 hours (its HBAR pair updates every few minutes). That is why the PRD asks for the 1-day staleness window on testnet.
 
-**Validators fail without the feature and pass with it.** _Run against `main` once the README and AGENTS.md land; results are recorded here._
+**Validators fail without the feature and pass with it.** `hedera-harness validate .harness/spec.yaml` on 2026-10-03, on two fresh clones (submodules included, `yarn install` from scratch):
 
-**A recorded agent run.** _Recorded here after `hedera-harness run`._
+| Workspace | Result |
+|---|---|
+| `main` as shipped (no ETH-USD) | `passed=false`, **8 findings, every one about the missing feature**, no false alarms: the ETH test file is missing (twice: required file, text assertion), `markets.json` lacks `"ETH-USD"`, the Chainlink ETH/USD address and `"supraPair": 19`, the README lacks `\| ETH-USD \|`, and the `markets-config` and `eth-usd-test` commands fail. Tier 2 is skipped because Tier 1 failed |
+| `main` + the reference implementation (3 files: `markets.json`, the ETH test, the README row) | **`passed=true`, `findings=0`, `playwrightGate=true routes=5`** |
+
+The passing run, command by command:
+
+```
+command yarn install exit=0
+command yarn workspace @sh/foundry check-markets ETH-USD exit=0
+command node -e "require('fs').statSync('packages/foundry/test/markets/EthUsdMarket.t.sol')" && yarn workspace @sh/foundry test --match-path test/markets/EthUsdMarket.t.sol exit=0
+command yarn foundry:test exit=0
+command yarn foundry:lint exit=0
+command yarn next:check-types exit=0
+command yarn next:lint --max-warnings=0 exit=0
+command yarn next:build exit=0
+Playwright gate: / /keeper /trade /pool /debug → 200, rendered, 0 console errors, no forbidden text
+Validation finished  passed=true  findings=0  playwrightGate=true routes=5
+```
+
+Two validator mistakes surfaced in the first "without" run and were fixed before these results: `packages/foundry/.env` was forbidden, but the template's own `postinstall` creates it from `.env.example` (no secrets), so it read as a false alarm; and `forge test --match-path` exits 0 when no test matches, so the `eth-usd-test` command now checks the file exists first.
+
+**Running the harness: prerequisites we hit.**
+- `hedera-harness` and `playwright` must both be **root** devDependencies (they are, in `package.json`). Under `npx hedera-harness`, the tool can't import `playwright` from npm's cache, and the Tier 2 gate fails before any route with no visible reason.
+- **Windows:** `hedera-harness` 1.2.2 starts the dev server with `spawn(..., { detached: true })`. On Windows that gives the child its own console, so the gate never sees `Local: http://…`, times out after 30 s, and leaves the dev server running. Run the harness on macOS, Linux or CI. The passing run above was made on Windows with that one flag set to `process.platform !== "win32"` in the installed `dist/validation/devServer.js`; nothing in the recipe changed.
+
+**A recorded agent run: passed on the first attempt.** `hedera-harness run .harness/spec.yaml` on 2026-10-03, on a fresh clone of `main` with no ETH-USD, agent preset `claude` (Claude Opus), operator an ECDSA testnet account passed through environment variables only:
+
+| | |
+|---|---|
+| Result | **PASSED, attempt 1 of 3, no findings** (`passed=true`, `openFindingIds=[]`) |
+| Duration | 15 min 39 s (01:39:05 → 01:54:43 UTC), 17 min wall clock including setup |
+| Stage 1/4 GENERATE | The agent read `AGENTS.md` and the PRD and changed 4 files, no contracts: the ETH-USD entry in `markets.json` (Chainlink `0xb9d4…71b9`, Supra pair 19, 86,400 s, 500 bps, `refPrice8` 270000000000), a new `test/markets/EthUsdMarket.t.sol` (5 tests, reading the entry from `markets.json`), a README row noting ~3,600 s on mainnet, and its own `GENERATION_NOTES.md` |
+| Stage 2/4 ASSERT | Tier 0 static: 0 findings. Tier 1: `check-markets ETH-USD`, the ETH test, all contract tests, `foundry:lint`, type check, app lint and production build all exit 0 |
+| Chain (Tier 3.5) | The harness created and funded throwaway account `0.0.10834938`, ran `yarn custos:check-market:testnet --market ETH-USD` (a PriceGuard deployed with the agent's config reading both live feeds), then swept the account back to 0 ℏ |
+| Stage 3/4 SMOKE | Playwright gate: `/`, `/keeper`, `/trade`, `/pool`, `/debug` |
+| Stage 4/4 EVALUATE | The adversarial validator, verbatim: *"All four assertions positively verified on the running app at http://localhost:3001. Keeper, trade, pool and debug pages all render with the expected labels, controls and live data; new ETH-USD market was added as configuration only and did not disturb the existing HBAR-USD surfaces."* |
+
+The harness committed the agent's work to branch `harness/run-custos-eth-usd-market-02f70d` (commit `80053db`, "harness: run attempt 1 passed"). Its two parent commits are the run's preparation, not agent work: the three root devDependencies, and the spec's `expose.envVars` fix below. Raw run artifacts went to `.harness/runs/`, which is gitignored.
+
+The first try at this run found a bug in the recipe, not in the template. The chain command was written as `DEPLOYER_PRIVATE_KEY="$HARNESS_SIGNER_PRIVATE_KEY" yarn …`, a POSIX-only prefix that cmd.exe rejects (`'DEPLOYER_PRIVATE_KEY' is not recognized`). It now uses the harness's own `expose.envVars: [DEPLOYER_PRIVATE_KEY]` and a plain `yarn` command that works in every shell. (On that try the agent had already implemented the PRD correctly; only the chain step failed.)
+
+**Windows notes for `run`.** Beyond the dev-server flag above, two more 1.2.2 spawns assume a POSIX host. The Tier 3 browser preflight runs `spawn("npx", …)` without a shell (on Windows `npx` is `npx.cmd`), and its best-effort cleanup then throws `EBUSY` on the probe's temp folder and ends the run. The recorded run used local one-line patches for both (`shell: process.platform === "win32"` on that spawn; `.catch(() => undefined)` on the cleanup), and put Claude Code's native `claude.exe` folder first on `PATH` so the harness's `spawn("claude")` finds it. None of this touches the recipe or the template; on macOS, Linux or CI none of it is needed.

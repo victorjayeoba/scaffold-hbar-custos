@@ -36,9 +36,11 @@ validator:
 
 # Tier 3.5. The recipe's on-chain check deploys a PriceGuard with the new market's
 # config and reads both feeds (Chainlink ETH/USD and Supra pair 19) on testnet. It
-# exits 1 if either feed doesn't answer. The harness's funded ephemeral account is
-# handed to it through an environment variable only, never a file. A PriceGuard
-# deploy costs about 1 HBAR, so 10 HBAR covers three attempts.
+# exits 1 if either feed doesn't answer. The harness hands its funded ephemeral
+# account to the command as DEPLOYER_PRIVATE_KEY (expose.envVars), through the
+# environment only, never a file. No `VAR=value cmd` prefix, so it runs the same
+# under cmd.exe and POSIX shells. A PriceGuard deploy costs about 1 HBAR, so
+# 10 HBAR covers three attempts.
 chainValidation:
   enabled: true
   network: testnet
@@ -47,10 +49,11 @@ chainValidation:
     privateKeyEnv: HEDERA_OPERATOR_KEY
   fundingHbar: 10
   sweepBack: true
+  expose:
+    envVars:
+      - DEPLOYER_PRIVATE_KEY
   deploy:
     commands:
       - name: eth-usd-feeds-on-testnet
-        command: >-
-          DEPLOYER_PRIVATE_KEY="$HARNESS_SIGNER_PRIVATE_KEY"
-          yarn custos:check-market:testnet --market ETH-USD
+        command: yarn custos:check-market:testnet --market ETH-USD
         timeoutMs: 300000
