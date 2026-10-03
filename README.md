@@ -321,7 +321,7 @@ The gas limit decides how much HBAR must sit in the reserve; the work done decid
 
 | Market | Chainlink feed (8 dp) | Supra pair | Max staleness | Max deviation |
 | --- | --- | --- | --- | --- |
-| HBAR-USD | `0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a` | 75 | 7200 s | 500 bps |
+| HBAR-USD | `0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a` | 75 | 43200 s | 500 bps |
 
 **Deploy-time variables**, read by `scripts-js/custos.js` from the shell environment (it does not load `packages/foundry/.env`):
 

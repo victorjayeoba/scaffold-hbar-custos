@@ -14,6 +14,7 @@ Three reusable parts, and one market built from them:
 | `PerpMarket` | HBAR-USD perpetual market settled in USDC. Inherits all three. The network liquidates and charges funding on every tick. | The demo; copy it for a new market |
 | `LiquidityPool` | USDC in, **cUSDC-LP out: a native HTS token the pool creates and mints**. Every trader's counterparty. | Any vault whose shares should be a real Hedera token |
 | `examples/Heartbeat` | The smallest keeper: counts its own beats. | Start here when you write your own keeper |
+| `periphery/HbarDepositZap` | LPs deposit with HBAR: SaucerSwap swaps it to USDC (never below the oracle value less 3%) and the zap deposits into the pool for the caller, in one transaction. Holds nothing, needs no rights on the pool. | Any vault that should accept HBAR without a separate swap step |
 
 Hedera services in play: Schedule Service (the keeper), Token Service (USDC collateral, plus the LP share token created and minted by a contract), Solidity on Hedera, the mirror node (the app's history), SaucerSwap V1 (open with HBAR, close to HBAR, keeper refuel), Chainlink + Supra (prices).
 
@@ -90,7 +91,7 @@ sequenceDiagram
 | Sweep | 50 positions per tick, stops early under 150k gas left, resumes next tick |
 | Min collateral (testnet deploy) | 1 USDC |
 | Keeper (testnet deploy) | interval 1,800 s, gas limit 3,000,000, starting gas price 82 tinybar/gas |
-| PriceGuard (HBAR-USD) | max staleness 7,200 s, max deviation 500 bps; owner can't set staleness > 1 day or deviation > 2,000 bps |
+| PriceGuard (HBAR-USD) | max staleness 43,200 s (12 h), max deviation 500 bps; owner can't set staleness > 1 day or deviation > 2,000 bps |
 | Refuel | when < 12 runs left, back up to 48, at most 50 USDC per refuel, only from USDC no position needs, must fill within 3% of the oracle price |
 
 ## 4. HIP-1215 and Hedera, learned the hard way
@@ -105,11 +106,12 @@ Each item was hit or measured on testnet, and each one is handled in the code.
 6. **Capacity is per second.** `hasScheduleCapacity` is checked first; if the second is full the keeper tries the next one, up to 10 seconds. If all 10 are full or the booking fails, `nextRunAt` still moves forward and anyone can call `revive()` once the tick is `2 × interval` overdue.
 7. **A failed run breaks the chain silently**, because nothing books the next one. Hence `revive()` (public, only when overdue), a self-call around `_work()` so a revert there still books the next tick, and `canPayNextRun()` for the app to warn early.
 8. **SaucerSwap testnet's USDC pool is ~22x off the oracle.** 1 HBAR buys 2.249 USDC there; Chainlink says $0.1025. A keeper that refuels at that pool overpays ~22x out of LP money. On an earlier deploy with a wide band this drained the LPs to a share price of 0.40. The keeper's refuel must now fill within 3% of the oracle price, so **on testnet refuels fail closed** (the tick still sweeps and reschedules; not one micro-USDC leaves the pool) and the reserve is topped up with `fund()`. On mainnet, where SaucerSwap tracks the market, refuels go through.
-9. **Supra's testnet feeds update at very different speeds.** HBAR/USDT (pair 75) pushes every few minutes to about hourly, and quotes USDT, so it can sit ~3% from Chainlink's HBAR/USD for a while: staleness is 2 h and deviation 5% for HBAR-USD. ETH/USDT (pair 19) was seen **8 h** old (2026-10-03), so a testnet ETH market needs the guard's maximum 1-day window (use about 1 h on mainnet). Pairs 0 and 1 haven't updated in months; don't use them.
-10. **Creating an HTS token from a contract costs about 12 ℏ** (12.14 ℏ measured, fee plus gas). `createShareToken()` takes it as `msg.value` and sends back what's left.
-11. **An account must be associated with an HTS token before it can receive it.** The pool associates itself with USDC (`associate()`); users associate with USDC and with cUSDC-LP through each token's HIP-719 `associate()`. To redeem, a user approves the pool on cUSDC-LP; the pool then pulls and burns the shares.
-12. **`forge script` can't deploy through the Hedera JSON-RPC relay** (the relay rejects the EIP-1898 block parameter Foundry sends when forking), and can't simulate HSS/HTS. `yarn custos:deploy:testnet` uses `forge create` and `cast send`.
-13. **The 24 KB contract size limit applies.** PerpMarket was 26.7 KB unoptimized and the relay rejected it as `CONTRACT_EXECUTION_EXCEPTION`. The optimizer (200 runs) brings it to 17.4 KB.
+9. **Chainlink's testnet HBAR/USD goes hours between pushes.** Seen 6.4 h and 3.7 h apart (it updates on deviation or a long heartbeat). With a 2 h staleness window the live market read `Stale` (close-only, sweeps skipped, deposits paused) for hours on 3 Oct, so the live guard was raised to 12 h with `setParams` ([`0x51cf5b7f…45fc`](https://hashscan.io/testnet/transaction/0x51cf5b7fd2d41425ba7599b54992e4396cbc04431ea47c6c3ae3ea3e3b6745fc)) and `markets.json` ships 43,200 s for HBAR-USD. The 5% deviation check against Supra still catches a wrong price.
+10. **Supra's testnet feeds update at very different speeds.** HBAR/USDT (pair 75) pushes every few minutes to about hourly, and quotes USDT, so it can sit ~3% from Chainlink's HBAR/USD for a while: deviation is 5% for HBAR-USD. ETH/USDT (pair 19) was seen **8 h** old (2026-10-03), so a testnet ETH market needs the guard's maximum 1-day window (use about 1 h on mainnet). Pairs 0 and 1 haven't updated in months; don't use them.
+11. **Creating an HTS token from a contract costs about 12 ℏ** (12.14 ℏ measured, fee plus gas). `createShareToken()` takes it as `msg.value` and sends back what's left.
+12. **An account must be associated with an HTS token before it can receive it.** The pool associates itself with USDC (`associate()`); users associate with USDC and with cUSDC-LP through each token's HIP-719 `associate()`. To redeem, a user approves the pool on cUSDC-LP; the pool then pulls and burns the shares.
+13. **`forge script` can't deploy through the Hedera JSON-RPC relay** (the relay rejects the EIP-1898 block parameter Foundry sends when forking), and can't simulate HSS/HTS. `yarn custos:deploy:testnet` uses `forge create` and `cast send`.
+14. **The 24 KB contract size limit applies.** PerpMarket was 26.7 KB unoptimized and the relay rejected it as `CONTRACT_EXECUTION_EXCEPTION`. The optimizer (200 runs) brings it to 17.4 KB.
 
 ## 5. What a tick costs
 

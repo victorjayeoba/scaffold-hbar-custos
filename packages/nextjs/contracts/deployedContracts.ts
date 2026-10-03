@@ -60,6 +60,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "MAX_FUTURE_SKEW",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "MAX_STALENESS_LIMIT",
           inputs: [],
           outputs: [
@@ -2894,6 +2907,272 @@ const deployedContracts = {
               name: "nextRunAt",
               type: "uint256",
               internalType: "uint256",
+            },
+          ],
+        },
+      ],
+      inheritedFunctions: {},
+    },
+    HbarDepositZap: {
+      address: "0xdD40EBFf88aaDc52B31D9E698803e47B04Ef185C",
+      abi: [
+        {
+          type: "constructor",
+          inputs: [
+            {
+              name: "pool_",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "guard_",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "router_",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "whbar_",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "maxSwapDeviationBps_",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "associate",
+          inputs: [],
+          outputs: [
+            {
+              name: "ok",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "depositWithHbar",
+          inputs: [
+            {
+              name: "minUsdc",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "shares",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "guard",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract PriceGuard",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "maxSwapDeviationBps",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "oracleFloor",
+          inputs: [
+            {
+              name: "hbar",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "pool",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract LiquidityPool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "quote",
+          inputs: [
+            {
+              name: "hbar",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract ISaucerSwapRouter",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "usdc",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IERC20",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "whbar",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "event",
+          name: "Associated",
+          inputs: [
+            {
+              name: "ok",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
+            {
+              name: "responseCode",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "DepositedWithHbar",
+          inputs: [
+            {
+              name: "lp",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "hbarIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "usdcOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "shares",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "HbarDepositZap__InvalidAddress",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "HbarDepositZap__InvalidConfig",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "HbarDepositZap__ZeroAmount",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SafeERC20FailedOperation",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
             },
           ],
         },
