@@ -17,7 +17,11 @@ export const usePool = (owner?: Address) => {
 
   const totalAssets = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "totalAssets", ...POLL });
   const freeAssets = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "freeAssets", ...POLL });
-  const { data: asset } = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "asset", ...POLL });
+  // Address reads come back as `string` (types/abitype/abi.d.ts); whether viem's `Address` is `string` too depends
+  // on which abitype copy the package manager installs for viem, so type the read here and it compiles under both.
+  const asset = useScaffoldReadContract({ contractName: "LiquidityPool", functionName: "asset", ...POLL }).data as
+    | Address
+    | undefined;
 
   // Read from the market rather than the pool: the pool only forwards it, and the market's view is stable.
   const { data: requiredLiquidity } = useScaffoldReadContract({

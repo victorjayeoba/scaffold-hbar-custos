@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { erc20Abi, zeroAddress } from "viem";
+import { type Address, erc20Abi, zeroAddress } from "viem";
 import { useReadContract } from "wagmi";
 import { POLL } from "~~/hooks/custos/poll";
 import { useScaffoldReadContract, useTargetNetwork } from "~~/hooks/scaffold-hbar";
@@ -67,8 +67,14 @@ export const useTradeMarket = () => {
     functionName: "FUNDING_FACTOR_PER_HOUR",
     ...ONCE,
   });
-  const { data: usdc } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "usdc", ...ONCE });
-  const { data: pool } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "pool", ...ONCE });
+  // Address reads come back as `string` (types/abitype/abi.d.ts); whether viem's `Address` is `string` too depends
+  // on which abitype copy the package manager installs for viem, so type the read here and it compiles under both.
+  const usdc = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "usdc", ...ONCE }).data as
+    | Address
+    | undefined;
+  const pool = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "pool", ...ONCE }).data as
+    | Address
+    | undefined;
   const { data: router } = useScaffoldReadContract({ contractName: "PerpMarket", functionName: "router", ...ONCE });
 
   const { data: longNotional } = useScaffoldReadContract({

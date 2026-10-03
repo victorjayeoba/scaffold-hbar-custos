@@ -9,11 +9,13 @@ import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaff
  */
 export const usePoolShares = (owner?: Address) => {
   const { data: pool } = useDeployedContractInfo({ contractName: "LiquidityPool" });
-  const { data: shareTokenAddress } = useScaffoldReadContract({
+  // Address reads come back as `string` (types/abitype/abi.d.ts); whether viem's `Address` is `string` too depends
+  // on which abitype copy the package manager installs for viem, so type the read here and it compiles under both.
+  const shareTokenAddress = useScaffoldReadContract({
     contractName: "LiquidityPool",
     functionName: "shareToken",
     ...POLL,
-  });
+  }).data as Address | undefined;
 
   // The pool returns the zero address until its owner calls createShareToken().
   const notCreated = shareTokenAddress === zeroAddress;
