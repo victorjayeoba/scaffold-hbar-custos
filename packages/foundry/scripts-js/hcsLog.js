@@ -148,9 +148,17 @@ async function operatorClient() {
       "Set HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY (environment only), or use --dry-run."
     );
   }
-  const privateKey = PrivateKey.fromStringECDSA(key.replace(/^0x/, ""));
+  // Pasted secrets often carry quotes, whitespace or a 0x prefix; portal keys may be DER-encoded (302e…/3030…).
+  const raw = key
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^0x/i, "");
+  const privateKey =
+    /^30[0-9a-f]{2}/i.test(raw) && raw.length > 64
+      ? PrivateKey.fromStringDer(raw)
+      : PrivateKey.fromStringECDSA(raw);
   const client = Client.forTestnet().setOperator(
-    AccountId.fromString(id),
+    AccountId.fromString(id.trim()),
     privateKey
   );
   return { client, privateKey };
