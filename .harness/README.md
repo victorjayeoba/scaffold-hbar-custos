@@ -11,7 +11,7 @@ This folder is a [Hedera Harness](https://github.com/hedera-dev/hedera-harness) 
 | [`spec.yaml`](spec.yaml) | — | The recipe: baseline, validators, contract, chain tier |
 | [`prd.md`](prd.md) | — | The task the agent gets |
 | [`validators/static.json`](validators/static.json) | 0 | `markets.json` has ETH-USD with Chainlink ETH/USD and Supra pair 19, HBAR-USD is untouched, `test/markets/EthUsdMarket.t.sol` exists, the README lists `ETH-USD`, AGENTS.md documents `markets.json` and `check-market`, and no root or app `.env` file exists (`packages/foundry/.env` is allowed: the template's `postinstall` copies it from `.env.example`) |
-| [`validators/yarn.json`](validators/yarn.json) | 1 | `check-markets ETH-USD` (offline config check), the ETH test, all 213+ contract tests and invariants, `foundry:lint`, the app's type check, lint and production build. No keys, no network |
+| [`validators/yarn.json`](validators/yarn.json) | 1 | `check-markets ETH-USD` (offline config check), the ETH test, every contract test and invariant, `foundry:lint`, the app's type check, lint and production build. No keys, no network |
 | [`validators/playwright-smoke.yaml`](validators/playwright-smoke.yaml) | 2 | `/`, `/keeper`, `/trade`, `/pool` and `/debug` load with no error overlay |
 | [`acceptance-contract.json`](acceptance-contract.json) | 3 | An adversarial agent grades the running app with no wallet: the keeper, trade and pool pages still read the live HBAR-USD deployment (adding a market must not break anything) |
 | `spec.yaml` → `chainValidation` | 3.5 | Deploys a PriceGuard with the new ETH-USD config from the harness's throwaway testnet account and reads both live feeds; fails if either doesn't answer |
