@@ -8,6 +8,7 @@ import {
   ArrowsRightLeftIcon,
   BanknotesIcon,
   Bars3Icon,
+  BookOpenIcon,
   BugAntIcon,
   ClockIcon,
   HomeIcon,
@@ -41,6 +42,11 @@ export const menuLinks: HeaderMenuLink[] = [
     label: "Keeper",
     href: "/keeper",
     icon: <ClockIcon className="h-4 w-4" />,
+  },
+  {
+    label: "Docs",
+    href: "/docs",
+    icon: <BookOpenIcon className="h-4 w-4" />,
   },
   {
     label: "Debug Contracts",

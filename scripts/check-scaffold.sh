@@ -18,7 +18,7 @@ mkdir -p "$LOGS"
 cd "$DIR" || exit 2
 
 # The routes the gate opens. Every other static page and API route is discovered below.
-GATE_ROUTES="/ /trade /pool /keeper /debug /blockexplorer"
+GATE_ROUTES="/ /trade /pool /keeper /docs /docs/quickstart /docs/testnet /debug /blockexplorer"
 
 PASS=0
 FAIL=0
