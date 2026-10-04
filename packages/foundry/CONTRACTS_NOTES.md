@@ -166,7 +166,7 @@ Every keeper event is also written to a Hedera Consensus Service topic, [0.0.108
 | `PerpMarket__OpenInterestCap(cap)` (0xf5de5219) | The pool can't back a position this big | Smaller size, or more pool liquidity |
 | `PerpMarket__PositionExists` / `NoPosition` | One position per account | Close first / open first |
 | `PerpMarket__HoldTime(closeableAt)` (0x52765821) | Closing within 300 s of opening | Wait until `closeableAt` |
-| `PerpMarket__NoPrice` (0x5cda1032) | Neither feed answers, so there's no price to close at | Wait for a feed |
+| `PerpMarket__NoPrice` (0x5cda1032) | Neither feed is fresh (younger than `maxStaleness`), so there's no price to close at | Wait for a feed to push again |
 | `PerpMarket__NotLiquidatable` (0x2103964c) | The position isn't underwater at the current price | — |
 | `PerpMarket__SwapDisabled` (0x0002a87d) | Deployed without a SaucerSwap router | Use `open` / `close` with USDC |
 | `PerpMarket__OnlyKeeper` (0xeee4b657) | `refuel()` called by someone else | Only the keeper's tick refuels |
@@ -193,7 +193,7 @@ Every keeper event is also written to a Hedera Consensus Service topic, [0.0.108
 - **The owner can tune, not take.** PerpMarket's owner can only correct the gas-price estimate; PriceGuard's owner can only change staleness/deviation within hard bounds; the pool's owner links the market and creates the share token once each. No one can move user funds.
 - **The live testnet deploy predates the stale-close fix.** A review on 2026-10-03 found that, with one feed down, `closePrice()` used the other feed without checking its age, so a trader could close at an old price that favoured them. The source now settles a close only at a feed younger than `maxStaleness` (and waits if neither is), and treats a feed timestamp more than 5 minutes in the future as stale (`PriceGuard.MAX_FUTURE_SKEW`); regression tests replay the attack. The contracts deployed on 2026-10-02 (§6) still have the old behaviour. On testnet the exposure needs Chainlink to stop answering while Supra is stale at a favourable price, and is capped by each position's gain cap; we kept the live deploy rather than strand its funded keeper reserve and its network-run proofs. A new deploy from this source has the fix.
 - **Testnet assets.** USDC 0.0.5449 is SaucerSwap's testnet token.
-- **Local chain is for trading and the pool only.** `yarn chain` + `yarn foundry:deploy` runs everything on mocks with stand-ins for the two system contracts; the keeper books ticks but nothing runs them, and the mock feeds go `Stale` 2 h after deploy (move them with `MockAggregator.set` / `MockSupra.set` from `/debug`).
+- **Local chain is for trading and the pool only.** `yarn foundry:chain` + `yarn foundry:deploy` runs everything on mocks with stand-ins for the two system contracts; the keeper books ticks but nothing runs them, and the mock feeds go `Stale` 2 h after deploy (move them with `MockAggregator.set` / `MockSupra.set` from `/debug`).
 
 ## 9. Recipes (for AGENTS.md)
 
@@ -263,7 +263,7 @@ The interval is fixed at deploy (`immutable`): `KEEPER_INTERVAL=3600 yarn custos
 
 ## 10. Tests
 
-`yarn foundry:test` runs 217 tests, all passing:
+`yarn foundry:test` runs 225 tests, all passing:
 
 | Suite | Tests | What it covers |
 |---|---|---|
@@ -274,6 +274,7 @@ The interval is fixed at deploy (`immutable`): `KEEPER_INTERVAL=3600 yarn custos
 | `PriceGuard.t.sol` + `.fuzz.t.sol` | 35 | Decimals scaling, staleness and deviation boundaries, broken and overflowing feeds, owner bounds |
 | `MarginMath.t.sol` | 20 | PnL, equity cap, liquidation price, funding index, running sums vs per-position sums |
 | `Markets.t.sol` | 2 | Every market in `markets.json` through a full cycle: open long and short at its reference price, network liquidation, profitable close, empty balanced books |
+| `HbarDepositZap.t.sol` | 8 | Swap then deposit for the caller, the caller's minimum, the oracle floor (fuzzed: never fills below it), Ok price required, the zap keeps nothing |
 | `invariant/Solvency.t.sol` | 10 invariants × 256 runs × 50 calls | Pool covers max gains; no bad debt; reserve covers the next tick; running sums match positions; collateral and OI books match; shares backed; nothing underwater after a tick; keeper stays scheduled |
 
 An independent audit (2026-10-02) found one High (JIT deposit/redeem around losses and liquidations), three Medium (early/gas-starved manual ticks, dust positions, closes at a stale price) and two Low (funding measured after a deposit, refuel slippage from a same-transaction quote). All are fixed, each with a regression test that replays the attack. Fuzzing then found a PriceGuard revert on overflowing feed values, also fixed.
