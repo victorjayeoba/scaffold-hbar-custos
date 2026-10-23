@@ -10,7 +10,7 @@ name: Fresh scaffold
 # - checkout: this commit, through the CLI's CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR
 #   seam, so a branch or pull request is tested before it lands.
 # - github:   `--template owner/repo#ref`, downloaded from GitHub exactly as a
-#   judge's `npm create scaffold-hbar@latest --template owner/repo` does. It
+#   judge's `npm create scaffold-hbar@latest -- --template owner/repo` does. It
 #   only works once the repository is public. Skipped on pull requests.
 #
 # The daily run catches a new CLI release. It does nothing in a project

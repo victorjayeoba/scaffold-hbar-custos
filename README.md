@@ -16,7 +16,7 @@
 <img src="docs/images/custos-hero.gif" alt="The Custos metronome: a stack of translucent violet plates with a pendulum swinging across them, one plate for each scheduled check the network runs" width="360">
 
 ```bash
-npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos
+npm create scaffold-hbar@latest -- --template victorjayeoba/scaffold-hbar-custos
 ```
 
 </div>
@@ -52,7 +52,7 @@ Then run the app (`yarn next:dev`) and open `/keeper`: the countdown to the next
 ### 1. Scaffold and test locally (no account, nothing spent)
 
 ```bash
-npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos
+npm create scaffold-hbar@latest -- --template victorjayeoba/scaffold-hbar-custos
 cd <your-project>
 yarn foundry:compile
 yarn foundry:test          # 225 tests, including the 10-invariant solvency suite

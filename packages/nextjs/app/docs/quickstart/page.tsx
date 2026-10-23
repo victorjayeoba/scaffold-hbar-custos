@@ -44,7 +44,7 @@ export default function Quickstart() {
       </Prose>
       <Steps>
         <Step title="Create your project">
-          <CodeBlock code="npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos" />
+          <CodeBlock code="npm create scaffold-hbar@latest -- --template victorjayeoba/scaffold-hbar-custos" />
           <p>The CLI asks for a project name and installs everything.</p>
         </Step>
         <Step title="Compile and test the contracts">

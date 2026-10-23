@@ -3,7 +3,7 @@
 import { CheckIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import { useCopyToClipboard } from "~~/hooks/scaffold-hbar";
 
-export const INSTALL_COMMAND = "npm create scaffold-hbar@latest --template victorjayeoba/scaffold-hbar-custos";
+export const INSTALL_COMMAND = "npm create scaffold-hbar@latest -- --template victorjayeoba/scaffold-hbar-custos";
 
 /** The one command that starts a project from this template, with a copy button. */
 export const InstallCommand = ({ onDark = false }: { onDark?: boolean }) => {
