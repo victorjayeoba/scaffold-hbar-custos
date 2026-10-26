@@ -16,7 +16,8 @@ export const wagmiConfig = createConfig({
 
     const rpcOverrideUrl = (scaffoldConfig.rpcOverrides as ScaffoldConfig["rpcOverrides"])?.[chain.id];
     if (rpcOverrideUrl) {
-      rpcFallbacks.push(http(rpcOverrideUrl));
+      // One HTTP request per tick of reads instead of one each: public relays rate-limit bursts.
+      rpcFallbacks.push(http(rpcOverrideUrl, { batch: true }));
     }
 
     // Default public RPC for the chain (e.g. Hedera testnet hashio)
