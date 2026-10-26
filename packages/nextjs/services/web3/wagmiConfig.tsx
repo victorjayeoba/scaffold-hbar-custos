@@ -16,8 +16,9 @@ export const wagmiConfig = createConfig({
 
     const rpcOverrideUrl = (scaffoldConfig.rpcOverrides as ScaffoldConfig["rpcOverrides"])?.[chain.id];
     if (rpcOverrideUrl) {
-      // One HTTP request per tick of reads instead of one each: public relays rate-limit bursts.
-      rpcFallbacks.push(http(rpcOverrideUrl, { batch: true }));
+      // Batch reads into few HTTP requests: public relays rate-limit bursts.
+      // thirdweb rejects batches over 25 calls (413), so stay under it.
+      rpcFallbacks.push(http(rpcOverrideUrl, { batch: { batchSize: 20 } }));
     }
 
     // Default public RPC for the chain (e.g. Hedera testnet hashio)
